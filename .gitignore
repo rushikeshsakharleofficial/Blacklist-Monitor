@@ -2,3 +2,8 @@ __pycache__/
 *.py[cod]
 *$py.class
 .pytest_cache/
+.env
+frontend/.env
+backend/.venv/
+*.db
+celerybeat-schedule
