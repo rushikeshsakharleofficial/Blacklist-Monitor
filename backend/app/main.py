@@ -12,7 +12,7 @@ app = FastAPI(title="Blacklist Monitor API")
 
 # Add CORS middleware
 _origins_env = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:8080")
-origins = [o.strip() for o in _origins_env.split(",")]
+origins = [o.strip() for o in _origins_env.split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
