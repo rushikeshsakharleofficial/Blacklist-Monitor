@@ -12,7 +12,7 @@ services:
     environment:
       - DATABASE_URL=postgresql://user:password@db:5432/blacklist_db
       - REDIS_URL=redis://redis:6379/0
-      - API_KEY=changeme
+      - API_KEY=admin
       - ALLOWED_ORIGINS=http://localhost:8080,http://localhost:3000
     depends_on:
       - db
