@@ -36,3 +36,9 @@ def test_get_history_returns_records_newest_first(client, db):
     assert len(data) == 2
     assert data[0]["details"] == "second"
     assert data[1]["details"] == "first"
+
+def test_rate_limit_post_targets(client):
+    for i in range(5):
+        client.post("/targets/", json={"value": f"10.0.0.{i}"}, headers=HEADERS)
+    response = client.post("/targets/", json={"value": "10.0.0.99"}, headers=HEADERS)
+    assert response.status_code == 429

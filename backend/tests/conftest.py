@@ -4,6 +4,7 @@ os.environ["API_KEY"] = "test-key"
 os.environ["REDIS_URL"] = "redis://localhost:6379/0"
 
 import pytest
+from unittest.mock import patch, MagicMock
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from fastapi.testclient import TestClient
@@ -30,6 +31,11 @@ def db(setup_db):
         yield session
     finally:
         session.close()
+
+@pytest.fixture(autouse=True)
+def mock_celery_delay():
+    with patch("app.tasks.monitor_target_task.delay") as mock:
+        yield mock
 
 @pytest.fixture()
 def client(db):

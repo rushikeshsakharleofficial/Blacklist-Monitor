@@ -8,3 +8,6 @@ python-dotenv
 requests
 python-multipart
 dnspython
+slowapi
+limits
+python-json-logger

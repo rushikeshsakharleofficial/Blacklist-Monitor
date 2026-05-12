@@ -6,7 +6,7 @@ import StatCard from './components/StatCard';
 import TargetTable, { Target } from './components/TargetTable';
 import AddTargetForm from './components/AddTargetForm';
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string) ?? 'http://localhost:8001';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001';
 const STORAGE_KEY = 'api_key';
 
 function App() {
