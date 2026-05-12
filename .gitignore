@@ -7,3 +7,5 @@ frontend/.env
 backend/.venv/
 *.db
 celerybeat-schedule
+self-signed.crt
+self-signed.key
