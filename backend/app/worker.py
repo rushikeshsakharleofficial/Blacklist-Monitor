@@ -10,4 +10,10 @@ celery_app.conf.update(
     result_serializer='json',
     timezone='UTC',
     enable_utc=True,
+    beat_schedule={
+        'monitor-all-targets-every-30-minutes': {
+            'task': 'app.tasks.monitor_all_targets_task',
+            'schedule': 1800.0,
+        },
+    },
 )
