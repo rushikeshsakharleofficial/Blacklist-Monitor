@@ -1,11 +1,19 @@
 services:
+  frontend:
+    build: ./frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - api
   api:
     build: ./backend
     ports:
-      - "8000:8000"
+      - "8001:8000"
     environment:
       - DATABASE_URL=postgresql://user:password@db:5432/blacklist_db
       - REDIS_URL=redis://redis:6379/0
+      - API_KEY=changeme
+      - ALLOWED_ORIGINS=http://localhost:8080,http://localhost:3000
     depends_on:
       - db
       - redis
