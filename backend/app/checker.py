@@ -20,8 +20,10 @@ def check_dnsbl(ip: str) -> bool:
 def check_target(address: str, target_type: str) -> bool:
     if target_type == "ip":
         return check_dnsbl(address)
-    try:
-        _, _, ips = socket.gethostbyname_ex(address)
-    except socket.gaierror:
-        return False
-    return any(check_dnsbl(ip) for ip in ips)
+    if target_type == "domain":
+        try:
+            _, _, ips = socket.gethostbyname_ex(address)
+        except socket.gaierror:
+            return False
+        return any(check_dnsbl(ip) for ip in ips)
+    return False
