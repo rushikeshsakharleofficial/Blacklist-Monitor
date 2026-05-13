@@ -68,6 +68,10 @@ function Dashboard({ apiBaseUrl }: { apiBaseUrl: string }) {
     return res.data as { added: number; skipped: number; total: number };
   };
 
+  const handleBulkDeleteTargets = (ids: number[]) => {
+    setTargets(prev => prev.filter(t => !ids.includes(t.id)));
+  };
+
   const handleDeleteTarget = async (id: number) => {
     try {
       await axios.delete(`${apiBaseUrl}/targets/${id}`);
@@ -117,7 +121,7 @@ function Dashboard({ apiBaseUrl }: { apiBaseUrl: string }) {
             <div className="mb-3">
               <AddTargetForm onAdd={handleAddTarget} onBulkExpand={handleBulkExpand} isLoading={isAdding} />
             </div>
-            <TargetTable targets={targets} onDelete={handleDeleteTarget} />
+            <TargetTable targets={targets} onDelete={handleDeleteTarget} onBulkDelete={handleBulkDeleteTargets} />
           </div>
         </div>
       </section>

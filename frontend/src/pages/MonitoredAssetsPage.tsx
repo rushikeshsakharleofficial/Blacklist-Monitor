@@ -55,6 +55,10 @@ const MonitoredAssetsPage: React.FC = () => {
     }
   };
 
+  const handleBulkDelete = (ids: number[]) => {
+    setTargets(prev => prev.filter(t => !ids.includes(t.id)));
+  };
+
   const listedCount = targets.filter(t => t.is_blacklisted).length;
   const cleanCount = targets.filter(t => !t.is_blacklisted && t.last_checked).length;
   const pendingCount = targets.filter(t => !t.last_checked).length;
@@ -134,7 +138,7 @@ const MonitoredAssetsPage: React.FC = () => {
               Loading monitored assets...
             </div>
           ) : (
-            !error && <TargetTable targets={targets} onDelete={handleDelete} />
+            !error && <TargetTable targets={targets} onDelete={handleDelete} onBulkDelete={handleBulkDelete} />
           )}
         </div>
       </div>

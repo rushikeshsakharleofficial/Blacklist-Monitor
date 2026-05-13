@@ -383,6 +383,17 @@ def recheck_all(request: Request):
     return {"message": "Recheck queued for all targets"}
 
 
+@app.post("/targets/bulk-delete", dependencies=[Depends(require("targets:delete"))])
+@limiter.limit("10/minute")
+def bulk_delete_targets(request: Request, body: dict, db: Session = Depends(get_db)):
+    ids = body.get("ids", [])
+    if not ids or not isinstance(ids, list):
+        raise HTTPException(status_code=422, detail="ids array required")
+    deleted = db.query(models.Target).filter(models.Target.id.in_(ids)).delete(synchronize_session=False)
+    db.commit()
+    return {"deleted": deleted}
+
+
 @app.delete("/targets/{target_id}", dependencies=[Depends(require("targets:delete"))])
 @limiter.limit("30/minute")
 def delete_target(request: Request, target_id: int, db: Session = Depends(get_db)):
