@@ -127,6 +127,12 @@ def verify_api_key(key: str = Security(api_key_header), db: Session = Depends(ge
 
 
 def infer_target_type(value: str) -> str:
+    if "/" in value:
+        try:
+            ipaddress.ip_network(value, strict=False)
+            return "subnet"
+        except ValueError:
+            pass
     ip_pattern = r"^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$"
     if re.match(ip_pattern, value):
         parts = value.split(".")
@@ -245,6 +251,16 @@ def add_target(request: Request, target: TargetCreate, db: Session = Depends(get
     if db_target:
         raise HTTPException(status_code=400, detail="Target already exists")
     target_type = infer_target_type(address)
+    if target_type == "subnet":
+        try:
+            net = ipaddress.ip_network(address, strict=False)
+            if net.prefixlen < 24:
+                raise HTTPException(status_code=422, detail="Subnet too large for monitoring. Maximum /24 (256 IPs).")
+            address = str(net)  # normalise to canonical form e.g. 10.0.0.0/24
+        except HTTPException:
+            raise
+        except Exception:
+            raise HTTPException(status_code=422, detail="Invalid subnet CIDR")
     new_target = models.Target(address=address, target_type=target_type)
     db.add(new_target)
     db.commit()
@@ -322,7 +338,12 @@ def get_blacklist_hits(request: Request, target_id: int, db: Session = Depends(g
     if latest and latest.details:
         try:
             data = json.loads(latest.details)
-            hits = data.get("hits", [])
+            raw_hits = data.get("hits", [])
+            # Subnet format: hits = [{"ip": ..., "zones": [...]}]
+            if raw_hits and isinstance(raw_hits[0], dict):
+                hits = [f"{h['ip']}: {', '.join(h['zones'])}" for h in raw_hits]
+            else:
+                hits = raw_hits
             total_checked = data.get("total_checked", total_checked)
         except (json.JSONDecodeError, TypeError):
             pass
@@ -379,7 +400,11 @@ async def problems_websocket(websocket: WebSocket):
                 if latest and latest.details:
                     try:
                         d = json.loads(latest.details)
-                        hits = d.get("hits", [])
+                        raw = d.get("hits", [])
+                        if raw and isinstance(raw[0], dict):
+                            hits = [f"{h['ip']}: {', '.join(h['zones'])}" for h in raw]
+                        else:
+                            hits = raw
                         total = d.get("total_checked", total)
                     except Exception:
                         pass

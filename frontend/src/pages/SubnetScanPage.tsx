@@ -68,6 +68,24 @@ export default function SubnetScanPage() {
     for (const r of listed) await addToMonitor(r.ip);
   };
 
+  const [monitoringSubnet, setMonitoringSubnet] = useState(false);
+  const [subnetAdded, setSubnetAdded] = useState(false);
+
+  const monitorEntireSubnet = async () => {
+    if (!result) return;
+    setMonitoringSubnet(true);
+    try {
+      await axios.post(`${API_BASE_URL}/targets/`, { value: result.cidr }, { headers });
+      setSubnetAdded(true);
+    } catch (err: any) {
+      const detail = err.response?.data?.detail || '';
+      if (detail.includes('already exists')) setSubnetAdded(true);
+      else alert(detail || 'Failed to add subnet');
+    } finally {
+      setMonitoringSubnet(false);
+    }
+  };
+
   return (
     <div>
       <header className="flex justify-between items-center mb-4 border-b border-panel-border pb-2">
@@ -119,7 +137,19 @@ export default function SubnetScanPage() {
               <span className="text-white text-[11px] font-bold uppercase tracking-wider">
                 Scan Results — {result.cidr}
               </span>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                {subnetAdded ? (
+                  <span className="text-[10px] font-bold text-success">✓ Subnet monitored</span>
+                ) : (
+                  <button
+                    onClick={monitorEntireSubnet}
+                    disabled={monitoringSubnet}
+                    className="text-[10px] font-bold px-2 py-1 text-white border border-[#2a5580] disabled:opacity-60"
+                    style={{ background: '#336699', borderRadius: 2 }}
+                  >
+                    {monitoringSubnet ? '…' : `Monitor Subnet ${result.cidr}`}
+                  </button>
+                )}
                 {result.listed > 0 && (
                   <button
                     onClick={addAllListed}

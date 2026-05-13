@@ -1,4 +1,5 @@
 import threading
+import ipaddress
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import dns.resolver
 import dns.exception
@@ -115,6 +116,31 @@ def check_dnsbl(ip: str) -> list[str]:
         except Exception:
             pass
     return hits
+
+
+def check_subnet_cidr(cidr: str) -> list[dict]:
+    """Check every host IP in a subnet. Returns list of {ip, zones} for listed IPs only."""
+    try:
+        net = ipaddress.ip_network(cidr, strict=False)
+        ips = [str(ip) for ip in net.hosts()] or [str(net.network_address)]
+    except Exception:
+        return []
+    results = []
+    with ThreadPoolExecutor(max_workers=16) as executor:
+        futures = {executor.submit(check_dnsbl, ip): ip for ip in ips}
+        try:
+            for future in as_completed(futures, timeout=300):
+                ip = futures[future]
+                try:
+                    hits = future.result()
+                except Exception:
+                    hits = []
+                if hits:
+                    results.append({"ip": ip, "zones": hits})
+        except Exception:
+            pass
+    results.sort(key=lambda x: [int(p) for p in x["ip"].split(".")])
+    return results
 
 
 def check_target(address: str, target_type: str) -> list[str]:
