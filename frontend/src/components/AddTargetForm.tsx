@@ -18,27 +18,18 @@ function parseCIDR(v: string): { valid: boolean; count: number } {
   return { valid: true, count };
 }
 
-const PRIVATE_RANGES = [
-  { prefix: [10], mask: 1 },           // 10.0.0.0/8
-  { prefix: [172, 16], mask: 2 },      // 172.16–31.0.0/12 (approx)
-  { prefix: [192, 168], mask: 2 },     // 192.168.0.0/16
-  { prefix: [127], mask: 1 },          // loopback
-  { prefix: [169, 254], mask: 2 },     // link-local
-  { prefix: [0], mask: 1 },            // 0.0.0.0/8
-  { prefix: [100, 64], mask: 2 },      // CGNAT 100.64/10
-];
-
-function isPrivateIp(value: string): boolean {
-  const parts = value.split('.').map(Number);
-  if (parts.length !== 4) return false;
-  for (const r of PRIVATE_RANGES) {
-    if (r.prefix.every((p, i) => parts[i] === p)) {
-      // extra check for 172.16-31 range
-      if (r.prefix[0] === 172 && (parts[1] < 16 || parts[1] > 31)) continue;
-      return true;
-    }
-  }
-  return false;
+function isPrivateIp(v: string): boolean {
+  const p = v.split('.').map(Number);
+  if (p.length !== 4 || !p.every(n => n >= 0 && n <= 255)) return false;
+  return (
+    p[0] === 10 ||                                        // 10.0.0.0/8
+    (p[0] === 172 && p[1] >= 16 && p[1] <= 31) ||        // 172.16.0.0/12
+    (p[0] === 192 && p[1] === 168) ||                     // 192.168.0.0/16
+    p[0] === 127 ||                                       // loopback
+    (p[0] === 169 && p[1] === 254) ||                     // link-local
+    p[0] === 0 ||                                         // 0.0.0.0/8
+    (p[0] === 100 && p[1] >= 64 && p[1] <= 127)          // CGNAT 100.64/10
+  );
 }
 
 function validate(value: string): string | null {

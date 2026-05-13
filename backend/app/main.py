@@ -359,6 +359,8 @@ def add_target(request: Request, target: TargetCreate, db: Session = Depends(get
             net = ipaddress.ip_network(address, strict=False)
             if net.version != 4:
                 raise HTTPException(status_code=422, detail="Only IPv4 subnets supported")
+            if net.is_private or net.is_loopback or net.is_link_local or net.is_reserved:
+                raise HTTPException(status_code=422, detail=f"{net} is a private/reserved subnet and cannot be monitored on public DNSBLs")
             address = str(net)  # normalise to canonical form
         except HTTPException:
             raise
