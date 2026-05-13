@@ -28,9 +28,12 @@ export default function SubnetScanPage() {
   const [scanning, setScanning] = useState(false);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [result, setResult] = useState<ScanResponse | null>(null);
+  const [liveResults, setLiveResults] = useState<ScanResult[]>([]);
+  const [newIps, setNewIps] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState<Record<string, boolean>>({});
   const [added, setAdded] = useState<Record<string, boolean>>({});
+  const seenIpsRef = useRef<Set<string>>(new Set());
   const [monitoringSubnet, setMonitoringSubnet] = useState(false);
   const [subnetAdded, setSubnetAdded] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -46,6 +49,9 @@ export default function SubnetScanPage() {
     setScanning(true);
     setError(null);
     setResult(null);
+    setLiveResults([]);
+    setNewIps(new Set());
+    seenIpsRef.current = new Set();
     setAdded({});
     setSubnetAdded(false);
     setProgress({ done: 0, total: 0 });
@@ -62,6 +68,20 @@ export default function SubnetScanPage() {
           const prog = await axios.get(`${API_BASE_URL}/scan/subnet/${scan_id}`, { headers });
           const data: ScanResponse = prog.data;
           setProgress({ done: data.done, total: data.total_ips });
+          // Show live results as they arrive — prepend new rows at top
+          const incoming = data.results.filter(r => !seenIpsRef.current.has(r.ip));
+          if (incoming.length > 0) {
+            incoming.forEach(r => seenIpsRef.current.add(r.ip));
+            const freshIps = new Set(incoming.map(r => r.ip));
+            setNewIps(prev => new Set([...prev, ...freshIps]));
+            setLiveResults(prev => [...incoming, ...prev]);
+            // Remove zoom class after animation
+            setTimeout(() => setNewIps(prev => {
+              const next = new Set(prev);
+              freshIps.forEach(ip => next.delete(ip));
+              return next;
+            }), 600);
+          }
           if (data.complete) {
             pollRef.current = null;
             setScanning(false);
@@ -177,110 +197,125 @@ export default function SubnetScanPage() {
         </div>
       )}
 
-      {result && (
-        <div className="space-y-3">
-          <div className="border border-panel-border">
-            <div className="flex items-center justify-between px-3 py-2 border-b border-panel-border" style={{ background: '#2c3e50' }}>
-              <span className="text-white text-[11px] font-bold uppercase tracking-wider">
-                Scan Results — {result.cidr}
-              </span>
-              <div className="flex items-center gap-2">
-                {subnetAdded ? (
-                  <span className="text-[10px] font-bold text-success">✓ Subnet monitored</span>
-                ) : (
-                  <button
-                    onClick={monitorEntireSubnet}
-                    disabled={monitoringSubnet}
-                    className="text-[10px] font-bold px-2 py-1 text-white border border-[#2a5580] disabled:opacity-60"
-                    style={{ background: '#336699', borderRadius: 2 }}
-                  >
-                    {monitoringSubnet ? '…' : `Monitor Subnet ${result.cidr}`}
-                  </button>
-                )}
-                {result.listed > 0 && (
-                  <button
-                    onClick={addAllListed}
-                    className="text-[10px] font-bold px-2 py-1 text-white border border-[#c0392b]"
-                    style={{ background: '#e74c3c', borderRadius: 2 }}
-                  >
-                    Add All Listed ({result.listed})
-                  </button>
-                )}
-                <span className="text-[#8ab4c8] text-[10px]">{result.total_ips} IPs scanned</span>
-              </div>
-            </div>
-            <div className="grid grid-cols-3 divide-x divide-panel-border bg-white">
-              {[
-                { label: 'Total IPs', value: result.total_ips, color: 'text-foreground' },
-                { label: 'Listed', value: result.listed, color: 'text-danger' },
-                { label: 'Clean', value: result.clean, color: 'text-success' },
-              ].map(({ label, value, color }) => (
-                <div key={label} className="px-4 py-3 text-center">
-                  <div className={`text-xl font-bold ${color}`}>{value}</div>
-                  <div className="text-[10px] text-muted uppercase tracking-wide mt-0.5">{label}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="border border-panel-border">
-            <div className="px-3 py-2 border-b border-panel-border" style={{ background: '#2c3e50' }}>
-              <span className="text-white text-[11px] font-bold uppercase tracking-wider">IP Results</span>
-            </div>
-            <table className="w-full text-xs border-collapse">
-              <thead>
-                <tr style={{ background: '#2c3e50', color: 'white' }}>
-                  <th className="px-3 py-2 text-left text-[10px] uppercase font-bold tracking-wide border border-[#3d5166] w-20">Status</th>
-                  <th className="px-3 py-2 text-left text-[10px] uppercase font-bold tracking-wide border border-[#3d5166] w-36">IP Address</th>
-                  <th className="px-3 py-2 text-left text-[10px] uppercase font-bold tracking-wide border border-[#3d5166] w-44">Provider / Org</th>
-                  <th className="px-3 py-2 text-left text-[10px] uppercase font-bold tracking-wide border border-[#3d5166]">Listed On</th>
-                  <th className="px-3 py-2 text-left text-[10px] uppercase font-bold tracking-wide border border-[#3d5166] w-16">Hits</th>
-                  <th className="px-3 py-2 text-left text-[10px] uppercase font-bold tracking-wide border border-[#3d5166] w-28">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {result.results.map((r, i) => (
-                  <tr key={r.ip} className={i % 2 === 0 ? 'bg-white' : 'bg-row-alt'}>
-                    <td className="px-3 py-1.5 border border-panel-border">
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 text-white uppercase" style={{ background: r.is_blacklisted ? '#e74c3c' : '#27ae60', borderRadius: 2 }}>
-                        {r.is_blacklisted ? 'LISTED' : 'CLEAN'}
-                      </span>
-                    </td>
-                    <td className="px-3 py-1.5 border border-panel-border font-mono font-bold text-foreground">{r.ip}</td>
-                    <td className="px-3 py-1.5 border border-panel-border text-[10px] text-muted truncate max-w-[176px]" title={r.org || ''}>{r.org || '—'}</td>
-                    <td className="px-3 py-1.5 border border-panel-border">
-                      {r.hits.length > 0 ? (
-                        <div className="flex flex-wrap gap-1">
-                          {r.hits.map(h => (
-                            <span key={h} className="font-mono text-[10px] px-1.5 py-0.5 border border-danger text-danger" style={{ borderRadius: 2, background: '#fce8e6' }}>{h}</span>
-                          ))}
-                        </div>
-                      ) : <span className="text-muted text-[10px] italic">—</span>}
-                    </td>
-                    <td className="px-3 py-1.5 border border-panel-border text-center font-mono font-bold" style={{ color: r.is_blacklisted ? '#e74c3c' : '#27ae60' }}>
-                      {r.hits.length}/{r.total_checked}
-                    </td>
-                    <td className="px-3 py-1.5 border border-panel-border">
-                      {added[r.ip] ? (
-                        <span className="text-[10px] font-bold text-success">✓ Added</span>
+      {/* Live results table — shows during scan AND after complete */}
+      {(liveResults.length > 0 || result) && (() => {
+        const displayResults = result ? result.results : liveResults;
+        const listed = displayResults.filter(r => r.is_blacklisted).length;
+        const cidrLabel = result?.cidr ?? cidr;
+        return (
+          <div className="space-y-3">
+            <div className="border border-panel-border">
+              <div className="flex items-center justify-between px-3 py-2 border-b border-panel-border" style={{ background: '#2c3e50' }}>
+                <span className="text-white text-[11px] font-bold uppercase tracking-wider">
+                  {scanning ? 'Live Results' : 'Scan Results'} — {cidrLabel}
+                </span>
+                <div className="flex items-center gap-2">
+                  {!scanning && (
+                    <>
+                      {subnetAdded ? (
+                        <span className="text-[10px] font-bold text-success">✓ Subnet monitored</span>
                       ) : (
-                        <button
-                          onClick={() => addToMonitor(r.ip)}
-                          disabled={adding[r.ip]}
-                          className="text-[10px] font-bold px-2 py-1 border border-panel-border bg-white hover:bg-row-alt disabled:opacity-60 uppercase"
-                          style={{ borderRadius: 2 }}
-                        >
-                          {adding[r.ip] ? '…' : '+ Monitor'}
+                        <button onClick={monitorEntireSubnet} disabled={monitoringSubnet}
+                          className="text-[10px] font-bold px-2 py-1 text-white border border-[#2a5580] disabled:opacity-60"
+                          style={{ background: '#336699', borderRadius: 2 }}>
+                          {monitoringSubnet ? '…' : `Monitor Subnet ${cidrLabel}`}
                         </button>
                       )}
-                    </td>
+                      {listed > 0 && (
+                        <button onClick={addAllListed}
+                          className="text-[10px] font-bold px-2 py-1 text-white border border-[#c0392b]"
+                          style={{ background: '#e74c3c', borderRadius: 2 }}>
+                          Add All Listed ({listed})
+                        </button>
+                      )}
+                    </>
+                  )}
+                  <span className="text-[#8ab4c8] text-[10px]">{displayResults.length} {scanning ? 'found so far' : 'IPs scanned'}</span>
+                </div>
+              </div>
+              {result && (
+                <div className="grid grid-cols-3 divide-x divide-panel-border bg-white">
+                  {[
+                    { label: 'Total IPs', value: result.total_ips, color: 'text-foreground' },
+                    { label: 'Listed', value: result.listed, color: 'text-danger' },
+                    { label: 'Clean', value: result.clean, color: 'text-success' },
+                  ].map(({ label, value, color }) => (
+                    <div key={label} className="px-4 py-3 text-center">
+                      <div className={`text-xl font-bold ${color}`}>{value}</div>
+                      <div className="text-[10px] text-muted uppercase tracking-wide mt-0.5">{label}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <style>{`
+              @keyframes zoomIn {
+                from { opacity: 0; transform: scale(0.92) translateY(-6px); }
+                to   { opacity: 1; transform: scale(1) translateY(0); }
+              }
+              .row-zoom-in { animation: zoomIn 0.35s ease-out both; }
+            `}</style>
+
+            <div className="border border-panel-border">
+              <div className="px-3 py-2 border-b border-panel-border" style={{ background: '#2c3e50' }}>
+                <span className="text-white text-[11px] font-bold uppercase tracking-wider">
+                  {scanning ? `IP Results (live — ${displayResults.length} completed)` : 'IP Results'}
+                </span>
+              </div>
+              <table className="w-full text-xs border-collapse">
+                <thead>
+                  <tr style={{ background: '#2c3e50', color: 'white' }}>
+                    <th className="px-3 py-2 text-left text-[10px] uppercase font-bold tracking-wide border border-[#3d5166] w-20">Status</th>
+                    <th className="px-3 py-2 text-left text-[10px] uppercase font-bold tracking-wide border border-[#3d5166] w-36">IP Address</th>
+                    <th className="px-3 py-2 text-left text-[10px] uppercase font-bold tracking-wide border border-[#3d5166] w-44">Provider / Org</th>
+                    <th className="px-3 py-2 text-left text-[10px] uppercase font-bold tracking-wide border border-[#3d5166]">Listed On</th>
+                    <th className="px-3 py-2 text-left text-[10px] uppercase font-bold tracking-wide border border-[#3d5166] w-16">Hits</th>
+                    <th className="px-3 py-2 text-left text-[10px] uppercase font-bold tracking-wide border border-[#3d5166] w-28">Action</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {displayResults.map((r, i) => (
+                    <tr key={r.ip}
+                      className={`${newIps.has(r.ip) ? 'row-zoom-in' : ''} ${i % 2 === 0 ? 'bg-white' : 'bg-row-alt'}`}>
+                      <td className="px-3 py-1.5 border border-panel-border">
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 text-white uppercase" style={{ background: r.is_blacklisted ? '#e74c3c' : '#27ae60', borderRadius: 2 }}>
+                          {r.is_blacklisted ? 'LISTED' : 'CLEAN'}
+                        </span>
+                      </td>
+                      <td className="px-3 py-1.5 border border-panel-border font-mono font-bold text-foreground">{r.ip}</td>
+                      <td className="px-3 py-1.5 border border-panel-border text-[10px] text-muted truncate max-w-[176px]" title={r.org || ''}>{r.org || '—'}</td>
+                      <td className="px-3 py-1.5 border border-panel-border">
+                        {r.hits.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {r.hits.map(h => (
+                              <span key={h} className="font-mono text-[10px] px-1.5 py-0.5 border border-danger text-danger" style={{ borderRadius: 2, background: '#fce8e6' }}>{h}</span>
+                            ))}
+                          </div>
+                        ) : <span className="text-muted text-[10px] italic">—</span>}
+                      </td>
+                      <td className="px-3 py-1.5 border border-panel-border text-center font-mono font-bold" style={{ color: r.is_blacklisted ? '#e74c3c' : '#27ae60' }}>
+                        {r.hits.length}/{r.total_checked}
+                      </td>
+                      <td className="px-3 py-1.5 border border-panel-border">
+                        {added[r.ip] ? (
+                          <span className="text-[10px] font-bold text-success">✓ Added</span>
+                        ) : (
+                          <button onClick={() => addToMonitor(r.ip)} disabled={adding[r.ip]}
+                            className="text-[10px] font-bold px-2 py-1 border border-panel-border bg-white hover:bg-row-alt disabled:opacity-60 uppercase"
+                            style={{ borderRadius: 2 }}>
+                            {adding[r.ip] ? '…' : '+ Monitor'}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
