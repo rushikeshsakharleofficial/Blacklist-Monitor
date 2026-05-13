@@ -142,7 +142,7 @@ export default function ProblemsPage() {
           </span>
           <span className="text-[#8ab4c8] text-[10px] flex items-center gap-1">
             <RefreshCw size={10} className={connected ? 'animate-spin' : ''} />
-            Auto-refresh every 10s via WebSocket
+            Auto-refresh every 10s
           </span>
         </div>
 
