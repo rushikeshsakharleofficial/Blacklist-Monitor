@@ -125,11 +125,13 @@ def check_subnet_cidr(cidr: str) -> list[dict]:
         ips = [str(ip) for ip in net.hosts()] or [str(net.network_address)]
     except Exception:
         return []
+    total = len(ips)
+    workers = min(total, 32)
     results = []
-    with ThreadPoolExecutor(max_workers=16) as executor:
+    with ThreadPoolExecutor(max_workers=workers) as executor:
         futures = {executor.submit(check_dnsbl, ip): ip for ip in ips}
         try:
-            for future in as_completed(futures, timeout=300):
+            for future in as_completed(futures, timeout=max(300, total * 2)):
                 ip = futures[future]
                 try:
                     hits = future.result()

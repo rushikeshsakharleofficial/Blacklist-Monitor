@@ -5,6 +5,8 @@ import logging
 import secrets
 import datetime as dt
 import ipaddress
+import uuid
+import threading
 from typing import Optional
 import asyncio
 import bcrypt
@@ -201,45 +203,78 @@ def list_dnsbl_providers():
     return {"providers": checker.COMMON_DNSBLS, "total": len(checker.COMMON_DNSBLS)}
 
 
+_REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
+import redis as _redis_lib
+_rclient = _redis_lib.Redis.from_url(_REDIS_URL, decode_responses=True)
+
+
 @app.post("/scan/subnet", dependencies=[Depends(verify_api_key)])
 @limiter.limit("5/minute")
-def scan_subnet(request: Request, body: SubnetScanRequest):
+def scan_subnet_start(request: Request, body: SubnetScanRequest):
+    """Start async subnet scan. Returns scan_id to poll for progress via GET /scan/subnet/{scan_id}."""
     from concurrent.futures import ThreadPoolExecutor, as_completed as asc
     try:
         net = ipaddress.ip_network(body.cidr.strip(), strict=False)
     except ValueError:
-        raise HTTPException(status_code=422, detail="Invalid CIDR notation (e.g. 192.168.1.0/26)")
+        raise HTTPException(status_code=422, detail="Invalid CIDR notation (e.g. 192.168.1.0/28)")
     if net.version != 4:
         raise HTTPException(status_code=422, detail="Only IPv4 subnets supported")
-    if net.prefixlen < 24:
-        raise HTTPException(status_code=422, detail="Subnet too large — maximum /24 (256 IPs)")
     ips = [str(ip) for ip in net.hosts()] or [str(net.network_address)]
-    results = []
-    with ThreadPoolExecutor(max_workers=min(len(ips), 16)) as executor:
-        futures = {executor.submit(checker.check_dnsbl, ip): ip for ip in ips}
-        try:
-            for future in asc(futures, timeout=90):
-                ip = futures[future]
-                try:
-                    hits = future.result()
-                except Exception:
-                    hits = []
-                results.append({
-                    "ip": ip,
-                    "hits": hits,
-                    "is_blacklisted": bool(hits),
-                    "total_checked": len(checker.COMMON_DNSBLS),
-                })
-        except Exception:
-            pass
+    total = len(ips)
+    workers = min(total, 32)
+    scan_id = str(uuid.uuid4())
+    TTL = 3600
+
+    # Store initial state in Redis — shared across all uvicorn workers
+    _rclient.setex(f"scan:{scan_id}:info", TTL, json.dumps({"cidr": str(net), "total": total, "complete": False}))
+    _rclient.setex(f"scan:{scan_id}:done", TTL, 0)
+
+    def _run():
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            futures = {executor.submit(checker.check_dnsbl, ip): ip for ip in ips}
+            try:
+                for future in asc(futures, timeout=max(300, total * 2)):
+                    ip = futures[future]
+                    try:
+                        hits = future.result()
+                    except Exception:
+                        hits = []
+                    _rclient.rpush(f"scan:{scan_id}:results", json.dumps({
+                        "ip": ip, "hits": hits, "is_blacklisted": bool(hits),
+                        "total_checked": len(checker.COMMON_DNSBLS),
+                    }))
+                    _rclient.expire(f"scan:{scan_id}:results", TTL)
+                    _rclient.incr(f"scan:{scan_id}:done")
+            except Exception:
+                pass
+        _rclient.setex(f"scan:{scan_id}:info", TTL, json.dumps({"cidr": str(net), "total": total, "complete": True}))
+
+    threading.Thread(target=_run, daemon=True).start()
+    return {"scan_id": scan_id, "cidr": str(net), "total": total}
+
+
+@app.get("/scan/subnet/{scan_id}", dependencies=[Depends(verify_api_key)])
+def scan_subnet_progress(request: Request, scan_id: str):
+    """Poll for subnet scan progress."""
+    info_raw = _rclient.get(f"scan:{scan_id}:info")
+    if not info_raw:
+        raise HTTPException(status_code=404, detail="Scan not found or expired")
+    info = json.loads(info_raw)
+    done = int(_rclient.get(f"scan:{scan_id}:done") or 0)
+    results = [json.loads(r) for r in _rclient.lrange(f"scan:{scan_id}:results", 0, -1)]
     results.sort(key=lambda x: [int(p) for p in x["ip"].split(".")])
     listed = sum(1 for r in results if r["is_blacklisted"])
+    if info["complete"]:
+        _rclient.delete(f"scan:{scan_id}:info", f"scan:{scan_id}:done", f"scan:{scan_id}:results")
     return {
-        "cidr": str(net),
-        "total_ips": len(results),
+        "scan_id": scan_id,
+        "cidr": info["cidr"],
+        "total_ips": info["total"],
+        "done": done,
+        "complete": info["complete"],
+        "results": results,
         "listed": listed,
         "clean": len(results) - listed,
-        "results": results,
     }
 
 
@@ -254,9 +289,9 @@ def add_target(request: Request, target: TargetCreate, db: Session = Depends(get
     if target_type == "subnet":
         try:
             net = ipaddress.ip_network(address, strict=False)
-            if net.prefixlen < 24:
-                raise HTTPException(status_code=422, detail="Subnet too large for monitoring. Maximum /24 (256 IPs).")
-            address = str(net)  # normalise to canonical form e.g. 10.0.0.0/24
+            if net.version != 4:
+                raise HTTPException(status_code=422, detail="Only IPv4 subnets supported")
+            address = str(net)  # normalise to canonical form
         except HTTPException:
             raise
         except Exception:

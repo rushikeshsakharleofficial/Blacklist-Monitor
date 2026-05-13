@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
-import { Network, RefreshCw, ShieldAlert, Shield } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001';
 const STORAGE_KEY = 'api_key';
@@ -17,32 +17,66 @@ interface ScanResponse {
   total_ips: number;
   listed: number;
   clean: number;
+  done: number;
+  complete: boolean;
   results: ScanResult[];
 }
 
 export default function SubnetScanPage() {
   const [cidr, setCidr] = useState('');
   const [scanning, setScanning] = useState(false);
+  const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [result, setResult] = useState<ScanResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState<Record<string, boolean>>({});
   const [added, setAdded] = useState<Record<string, boolean>>({});
+  const [monitoringSubnet, setMonitoringSubnet] = useState(false);
+  const [subnetAdded, setSubnetAdded] = useState(false);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => () => { if (pollRef.current) clearTimeout(pollRef.current as unknown as ReturnType<typeof setTimeout>); }, []);
 
   const apiKey = localStorage.getItem(STORAGE_KEY) || '';
   const headers = { 'X-API-Key': apiKey };
 
   const handleScan = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (pollRef.current) { clearTimeout(pollRef.current); pollRef.current = null; }
     setScanning(true);
     setError(null);
     setResult(null);
     setAdded({});
+    setSubnetAdded(false);
+    setProgress({ done: 0, total: 0 });
+
     try {
-      const res = await axios.post(`${API_BASE_URL}/scan/subnet`, { cidr }, { headers, timeout: 120000 });
-      setResult(res.data);
+      const res = await axios.post(`${API_BASE_URL}/scan/subnet`, { cidr }, { headers });
+      const { scan_id, total } = res.data;
+      setProgress({ done: 0, total });
+
+      // Use recursive setTimeout — schedules next poll only AFTER current response,
+      // avoiding the setInterval async race where next tick is queued before clearInterval runs.
+      const poll = async () => {
+        try {
+          const prog = await axios.get(`${API_BASE_URL}/scan/subnet/${scan_id}`, { headers });
+          const data: ScanResponse = prog.data;
+          setProgress({ done: data.done, total: data.total_ips });
+          if (data.complete) {
+            pollRef.current = null;
+            setScanning(false);
+            setResult(data);
+            return;
+          }
+          pollRef.current = setTimeout(poll, 400) as unknown as ReturnType<typeof setInterval>;
+        } catch {
+          pollRef.current = null;
+          setScanning(false);
+          setError('Lost connection during scan.');
+        }
+      };
+      pollRef.current = setTimeout(poll, 400) as unknown as ReturnType<typeof setInterval>;
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Scan failed. Check CIDR and try again.');
-    } finally {
       setScanning(false);
     }
   };
@@ -53,10 +87,7 @@ export default function SubnetScanPage() {
       await axios.post(`${API_BASE_URL}/targets/`, { value: ip }, { headers });
       setAdded(a => ({ ...a, [ip]: true }));
     } catch (err: any) {
-      const detail = err.response?.data?.detail || '';
-      if (detail.includes('already exists')) {
-        setAdded(a => ({ ...a, [ip]: true }));
-      }
+      if (err.response?.data?.detail?.includes('already exists')) setAdded(a => ({ ...a, [ip]: true }));
     } finally {
       setAdding(a => ({ ...a, [ip]: false }));
     }
@@ -64,12 +95,10 @@ export default function SubnetScanPage() {
 
   const addAllListed = async () => {
     if (!result) return;
-    const listed = result.results.filter(r => r.is_blacklisted && !added[r.ip]);
-    for (const r of listed) await addToMonitor(r.ip);
+    for (const r of result.results.filter(r => r.is_blacklisted && !added[r.ip])) {
+      await addToMonitor(r.ip);
+    }
   };
-
-  const [monitoringSubnet, setMonitoringSubnet] = useState(false);
-  const [subnetAdded, setSubnetAdded] = useState(false);
 
   const monitorEntireSubnet = async () => {
     if (!result) return;
@@ -78,13 +107,14 @@ export default function SubnetScanPage() {
       await axios.post(`${API_BASE_URL}/targets/`, { value: result.cidr }, { headers });
       setSubnetAdded(true);
     } catch (err: any) {
-      const detail = err.response?.data?.detail || '';
-      if (detail.includes('already exists')) setSubnetAdded(true);
-      else alert(detail || 'Failed to add subnet');
+      if (err.response?.data?.detail?.includes('already exists')) setSubnetAdded(true);
+      else alert(err.response?.data?.detail || 'Failed to add subnet');
     } finally {
       setMonitoringSubnet(false);
     }
   };
+
+  const pct = progress.total ? Math.round((progress.done / progress.total) * 100) : 0;
 
   return (
     <div>
@@ -92,7 +122,7 @@ export default function SubnetScanPage() {
         <div>
           <h1 className="text-base font-bold text-foreground uppercase tracking-wide">Subnet Scanner</h1>
           <p className="text-muted text-[11px] mt-0.5">
-            Check all IPs in a subnet against {result ? result.results[0]?.total_checked ?? 52 : 52} DNSBL providers — max /24 (256 IPs)
+            Check all IPs in a subnet against 52 DNSBL providers — any size (/0–/32), batched automatically
           </p>
         </div>
       </header>
@@ -102,9 +132,10 @@ export default function SubnetScanPage() {
           type="text"
           value={cidr}
           onChange={e => setCidr(e.target.value)}
-          placeholder="e.g. 192.168.1.0/24 or 10.0.0.0/28"
+          placeholder="e.g. 10.0.0.0/8, 192.168.1.0/24, 178.27.86.0/28"
           required
-          className="flex-1 px-3 py-2 text-xs border border-panel-border font-mono focus:outline-none focus:border-primary"
+          disabled={scanning}
+          className="flex-1 px-3 py-2 text-xs border border-panel-border font-mono focus:outline-none focus:border-primary disabled:opacity-60"
           style={{ borderRadius: 2 }}
         />
         <button
@@ -118,20 +149,35 @@ export default function SubnetScanPage() {
         </button>
       </form>
 
-      {scanning && (
-        <div className="border border-panel-border bg-white px-4 py-6 text-center text-xs text-muted">
-          <RefreshCw size={20} className="animate-spin mx-auto mb-2 text-primary" />
-          Scanning all IPs in subnet against 52 DNSBL providers — this may take up to 60 seconds…
-        </div>
-      )}
-
       {error && (
         <div className="border border-danger bg-danger-bg text-danger px-4 py-2 mb-4 text-xs">{error}</div>
       )}
 
+      {scanning && (
+        <div className="border border-panel-border bg-white px-4 py-4 mb-4">
+          <div className="flex justify-between text-[10px] text-muted mb-1.5">
+            <span>Checking IPs against 52 DNSBL providers…</span>
+            <span className="font-mono font-bold text-foreground">{progress.done} / {progress.total} IPs</span>
+          </div>
+          <div className="w-full bg-row-alt border border-panel-border overflow-hidden" style={{ height: 18, borderRadius: 2 }}>
+            <div
+              className="h-full flex items-center justify-center text-[9px] text-white font-bold transition-all duration-300"
+              style={{ width: `${pct}%`, minWidth: pct > 0 ? 32 : 0, background: '#336699', borderRadius: 2 }}
+            >
+              {pct > 8 ? `${pct}%` : ''}
+            </div>
+          </div>
+          {progress.total > 0 && (
+            <div className="flex justify-between mt-1.5 text-[10px] text-muted">
+              <span>0</span>
+              <span>{progress.total} IPs</span>
+            </div>
+          )}
+        </div>
+      )}
+
       {result && (
         <div className="space-y-3">
-          {/* Summary */}
           <div className="border border-panel-border">
             <div className="flex items-center justify-between px-3 py-2 border-b border-panel-border" style={{ background: '#2c3e50' }}>
               <span className="text-white text-[11px] font-bold uppercase tracking-wider">
@@ -163,22 +209,19 @@ export default function SubnetScanPage() {
               </div>
             </div>
             <div className="grid grid-cols-3 divide-x divide-panel-border bg-white">
-              <div className="px-4 py-3 text-center">
-                <div className="text-xl font-bold text-foreground">{result.total_ips}</div>
-                <div className="text-[10px] text-muted uppercase tracking-wide mt-0.5">Total IPs</div>
-              </div>
-              <div className="px-4 py-3 text-center">
-                <div className="text-xl font-bold text-danger">{result.listed}</div>
-                <div className="text-[10px] text-muted uppercase tracking-wide mt-0.5">Listed</div>
-              </div>
-              <div className="px-4 py-3 text-center">
-                <div className="text-xl font-bold text-success">{result.clean}</div>
-                <div className="text-[10px] text-muted uppercase tracking-wide mt-0.5">Clean</div>
-              </div>
+              {[
+                { label: 'Total IPs', value: result.total_ips, color: 'text-foreground' },
+                { label: 'Listed', value: result.listed, color: 'text-danger' },
+                { label: 'Clean', value: result.clean, color: 'text-success' },
+              ].map(({ label, value, color }) => (
+                <div key={label} className="px-4 py-3 text-center">
+                  <div className={`text-xl font-bold ${color}`}>{value}</div>
+                  <div className="text-[10px] text-muted uppercase tracking-wide mt-0.5">{label}</div>
+                </div>
+              ))}
             </div>
           </div>
 
-          {/* Results table */}
           <div className="border border-panel-border">
             <div className="px-3 py-2 border-b border-panel-border" style={{ background: '#2c3e50' }}>
               <span className="text-white text-[11px] font-bold uppercase tracking-wider">IP Results</span>
@@ -197,25 +240,19 @@ export default function SubnetScanPage() {
                 {result.results.map((r, i) => (
                   <tr key={r.ip} className={i % 2 === 0 ? 'bg-white' : 'bg-row-alt'}>
                     <td className="px-3 py-1.5 border border-panel-border">
-                      {r.is_blacklisted ? (
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 text-white uppercase" style={{ background: '#e74c3c', borderRadius: 2 }}>LISTED</span>
-                      ) : (
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 text-white uppercase" style={{ background: '#27ae60', borderRadius: 2 }}>CLEAN</span>
-                      )}
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 text-white uppercase" style={{ background: r.is_blacklisted ? '#e74c3c' : '#27ae60', borderRadius: 2 }}>
+                        {r.is_blacklisted ? 'LISTED' : 'CLEAN'}
+                      </span>
                     </td>
                     <td className="px-3 py-1.5 border border-panel-border font-mono font-bold text-foreground">{r.ip}</td>
                     <td className="px-3 py-1.5 border border-panel-border">
                       {r.hits.length > 0 ? (
                         <div className="flex flex-wrap gap-1">
                           {r.hits.map(h => (
-                            <span key={h} className="font-mono text-[10px] px-1.5 py-0.5 border border-danger text-danger" style={{ borderRadius: 2, background: '#fce8e6' }}>
-                              {h}
-                            </span>
+                            <span key={h} className="font-mono text-[10px] px-1.5 py-0.5 border border-danger text-danger" style={{ borderRadius: 2, background: '#fce8e6' }}>{h}</span>
                           ))}
                         </div>
-                      ) : (
-                        <span className="text-muted text-[10px] italic">—</span>
-                      )}
+                      ) : <span className="text-muted text-[10px] italic">—</span>}
                     </td>
                     <td className="px-3 py-1.5 border border-panel-border text-center font-mono font-bold" style={{ color: r.is_blacklisted ? '#e74c3c' : '#27ae60' }}>
                       {r.hits.length}/{r.total_checked}
