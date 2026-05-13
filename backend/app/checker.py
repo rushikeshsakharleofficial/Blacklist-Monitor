@@ -47,6 +47,16 @@ COMMON_DNSBLS = [
     "rbl.interserver.net",
     "truncate.gbudb.net",
     "rbl.schulte.org",
+    # Additional MXToolbox-verified zones
+    "bl.drmx.org",
+    "spamrbl.imp.ch",
+    "wormrbl.imp.ch",
+    "dnsbl.kempt.net",
+    "bl.nosolicitado.org",
+    "short.rbl.jp",
+    "virus.rbl.jp",
+    "korea.services.net",
+    "rbl2.triumf.ca",
 ]
 
 # Zones that return specific codes: only certain return IPs indicate listing.
