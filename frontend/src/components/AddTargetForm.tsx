@@ -18,15 +18,42 @@ function parseCIDR(v: string): { valid: boolean; count: number } {
   return { valid: true, count };
 }
 
+const PRIVATE_RANGES = [
+  { prefix: [10], mask: 1 },           // 10.0.0.0/8
+  { prefix: [172, 16], mask: 2 },      // 172.16–31.0.0/12 (approx)
+  { prefix: [192, 168], mask: 2 },     // 192.168.0.0/16
+  { prefix: [127], mask: 1 },          // loopback
+  { prefix: [169, 254], mask: 2 },     // link-local
+  { prefix: [0], mask: 1 },            // 0.0.0.0/8
+  { prefix: [100, 64], mask: 2 },      // CGNAT 100.64/10
+];
+
+function isPrivateIp(value: string): boolean {
+  const parts = value.split('.').map(Number);
+  if (parts.length !== 4) return false;
+  for (const r of PRIVATE_RANGES) {
+    if (r.prefix.every((p, i) => parts[i] === p)) {
+      // extra check for 172.16-31 range
+      if (r.prefix[0] === 172 && (parts[1] < 16 || parts[1] > 31)) continue;
+      return true;
+    }
+  }
+  return false;
+}
+
 function validate(value: string): string | null {
   if (value.includes('/')) {
     const { valid } = parseCIDR(value);
-    return valid ? null : 'Invalid CIDR (e.g. 192.168.1.0/24)';
+    if (!valid) return 'Invalid CIDR (e.g. 192.168.1.0/24)';
+    const host = value.split('/')[0];
+    if (isPrivateIp(host)) return 'Private/reserved subnets cannot be monitored on public DNSBLs';
+    return null;
   }
   const ip = /^(\d{1,3}\.){3}\d{1,3}$/.test(value);
   if (ip) {
     const parts = value.split('.').map(Number);
     if (!parts.every(p => p >= 0 && p <= 255)) return 'Invalid IP octet (0–255)';
+    if (isPrivateIp(value)) return 'Private/reserved IPs cannot be monitored on public DNSBLs';
     return null;
   }
   const domain = /^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/.test(value);

@@ -241,6 +241,8 @@ def subnet_expand(request: Request, body: SubnetScanRequest, db: Session = Depen
         raise HTTPException(status_code=422, detail="Only IPv4 subnets supported")
     if net.prefixlen < 16:
         raise HTTPException(status_code=422, detail=f"Too large — maximum /16 (65,534 IPs). Got /{net.prefixlen}")
+    if net.is_private or net.is_loopback or net.is_link_local or net.is_reserved:
+        raise HTTPException(status_code=422, detail=f"{net} is a private/reserved subnet and cannot be monitored on public DNSBLs")
     ips = [str(ip) for ip in net.hosts()] or [str(net.network_address)]
     existing = {
         r[0] for r in db.query(models.Target.address).filter(models.Target.address.in_(ips)).all()
@@ -341,6 +343,16 @@ def add_target(request: Request, target: TargetCreate, db: Session = Depends(get
     if db_target:
         raise HTTPException(status_code=400, detail="Target already exists")
     target_type = infer_target_type(address)
+    # Reject private / reserved IPs — they cannot appear on public DNSBLs
+    if target_type == "ip":
+        try:
+            addr = ipaddress.ip_address(address)
+            if addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved or addr.is_unspecified:
+                raise HTTPException(status_code=422, detail=f"{address} is a private/reserved IP and cannot be monitored on public DNSBLs")
+        except HTTPException:
+            raise
+        except Exception:
+            pass
     if target_type == "subnet":
         try:
             net = ipaddress.ip_network(address, strict=False)
