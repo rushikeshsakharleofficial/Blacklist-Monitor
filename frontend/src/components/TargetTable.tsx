@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Trash2, ExternalLink, X, Check } from 'lucide-react';
+import { Trash2, ExternalLink, X, Check, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { ConfirmDialog, ErrorDialog } from './Dialog';
 
@@ -40,19 +40,31 @@ function StatusBadge({ target }: { target: Target }) {
     : <span className="text-[10px] font-bold px-2 py-0.5 rounded text-white uppercase tracking-wide" style={{ background: '#27ae60' }}>CLEAN</span>;
 }
 
+const PAGE_SIZES = [20, 50, 100, 200];
+
 const TargetTable: React.FC<Props> = ({ targets, onDelete, onBulkDelete }) => {
   const [confirmId, setConfirmId] = useState<number | null>(null);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [confirmBulk, setConfirmBulk] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
 
-  const allSelected = targets.length > 0 && targets.every(t => selected.has(t.id));
+  const totalPages = Math.max(1, Math.ceil(targets.length / pageSize));
+  // Reset to page 1 if targets list changes length significantly
+  useEffect(() => { setPage(1); }, [targets.length]);
+  const pageTargets = targets.slice((page - 1) * pageSize, page * pageSize);
+
+  const allSelected = pageTargets.length > 0 && pageTargets.every(t => selected.has(t.id));
   const someSelected = selected.size > 0;
 
   const toggleAll = () => {
-    if (allSelected) setSelected(new Set());
-    else setSelected(new Set(targets.map(t => t.id)));
+    if (allSelected) {
+      setSelected(prev => { const n = new Set(prev); pageTargets.forEach(t => n.delete(t.id)); return n; });
+    } else {
+      setSelected(prev => new Set([...prev, ...pageTargets.map(t => t.id)]));
+    }
   };
 
   const toggleOne = (id: number) => {
@@ -143,7 +155,7 @@ const TargetTable: React.FC<Props> = ({ targets, onDelete, onBulkDelete }) => {
           </tr>
         </thead>
         <tbody>
-          {targets.map((t, i) => (
+          {pageTargets.map((t, i) => (
             <tr key={t.id} className={`${selected.has(t.id) ? 'bg-[#eef4fb]' : i % 2 === 0 ? 'bg-white' : 'bg-row-alt'}`}>
               <td className="px-3 py-1.5 border border-panel-border text-center">
                 <input
@@ -198,9 +210,39 @@ const TargetTable: React.FC<Props> = ({ targets, onDelete, onBulkDelete }) => {
         </tbody>
         <tfoot>
           <tr className="bg-[#f0f2f5]">
-            <td colSpan={7} className="px-3 py-1.5 border border-panel-border text-muted text-[11px]">
-              Showing {targets.length} asset{targets.length !== 1 ? 's' : ''} — {targets.filter(t => t.is_blacklisted).length} listed, {targets.filter(t => !t.is_blacklisted && t.last_checked).length} clean
-              {someSelected && <span className="ml-2 font-bold text-foreground">· {selected.size} selected</span>}
+            <td colSpan={7} className="px-3 py-1.5 border border-panel-border">
+              <div className="flex items-center justify-between">
+                <span className="text-muted text-[11px]">
+                  {targets.length} asset{targets.length !== 1 ? 's' : ''} — {targets.filter(t => t.is_blacklisted).length} listed, {targets.filter(t => !t.is_blacklisted && t.last_checked).length} clean
+                  {someSelected && <span className="ml-2 font-bold text-foreground">· {selected.size} selected</span>}
+                </span>
+                {targets.length > PAGE_SIZES[0] && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-muted">Rows:</span>
+                    <select
+                      value={pageSize}
+                      onChange={e => { setPageSize(Number(e.target.value)); setPage(1); }}
+                      className="text-[10px] border border-panel-border px-1 py-0.5 bg-white"
+                      style={{ borderRadius: 2 }}>
+                      {PAGE_SIZES.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                    <span className="text-[10px] text-muted font-mono">
+                      {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, targets.length)} of {targets.length}
+                    </span>
+                    <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+                      className="p-0.5 border border-panel-border bg-white hover:bg-row-alt disabled:opacity-40"
+                      style={{ borderRadius: 2 }}>
+                      <ChevronLeft size={12} />
+                    </button>
+                    <span className="text-[10px] font-bold text-foreground">{page}/{totalPages}</span>
+                    <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
+                      className="p-0.5 border border-panel-border bg-white hover:bg-row-alt disabled:opacity-40"
+                      style={{ borderRadius: 2 }}>
+                      <ChevronRight size={12} />
+                    </button>
+                  </div>
+                )}
+              </div>
             </td>
           </tr>
         </tfoot>
