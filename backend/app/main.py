@@ -389,6 +389,7 @@ def bulk_delete_targets(request: Request, body: dict, db: Session = Depends(get_
     ids = body.get("ids", [])
     if not ids or not isinstance(ids, list):
         raise HTTPException(status_code=422, detail="ids array required")
+    db.query(models.CheckHistory).filter(models.CheckHistory.target_id.in_(ids)).delete(synchronize_session=False)
     deleted = db.query(models.Target).filter(models.Target.id.in_(ids)).delete(synchronize_session=False)
     db.commit()
     return {"deleted": deleted}
@@ -400,6 +401,7 @@ def delete_target(request: Request, target_id: int, db: Session = Depends(get_db
     target = db.query(models.Target).filter(models.Target.id == target_id).first()
     if not target:
         raise HTTPException(status_code=404, detail="Target not found")
+    db.query(models.CheckHistory).filter(models.CheckHistory.target_id == target_id).delete(synchronize_session=False)
     db.delete(target)
     db.commit()
     return {"message": "Target deleted"}

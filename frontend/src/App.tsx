@@ -3,6 +3,7 @@ import axios from 'axios';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { Shield, ShieldAlert, Activity, RefreshCw } from 'lucide-react';
 import Sidebar from './components/Sidebar';
+import { ErrorDialog } from './components/Dialog';
 import StatCard from './components/StatCard';
 import TargetTable, { Target } from './components/TargetTable';
 import AddTargetForm from './components/AddTargetForm';
@@ -29,6 +30,7 @@ function Dashboard({ apiBaseUrl }: { apiBaseUrl: string }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const fetchTargets = async () => {
     try {
@@ -56,7 +58,7 @@ function Dashboard({ apiBaseUrl }: { apiBaseUrl: string }) {
       await axios.post(`${apiBaseUrl}/targets/`, { value });
       await fetchTargets();
     } catch (err: any) {
-      alert(err.response?.data?.detail || 'Failed to add target');
+      setErrorMsg(err.response?.data?.detail || 'Failed to add target');
     } finally {
       setIsAdding(false);
     }
@@ -77,7 +79,7 @@ function Dashboard({ apiBaseUrl }: { apiBaseUrl: string }) {
       await axios.delete(`${apiBaseUrl}/targets/${id}`);
       setTargets(targets.filter(t => t.id !== id));
     } catch {
-      alert('Failed to delete target');
+      setErrorMsg('Failed to delete target');
     }
   };
 
@@ -86,6 +88,7 @@ function Dashboard({ apiBaseUrl }: { apiBaseUrl: string }) {
 
   return (
     <>
+      {errorMsg && <ErrorDialog message={errorMsg} onClose={() => setErrorMsg(null)} />}
       <header className="flex justify-between items-center mb-4 border-b border-panel-border pb-2">
         <div>
           <h1 className="text-base font-bold text-foreground uppercase tracking-wide">Security Overview</h1>

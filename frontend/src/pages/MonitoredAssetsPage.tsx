@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Shield, Plus, X, RefreshCw } from 'lucide-react';
 import AddTargetForm from '../components/AddTargetForm';
+import { ErrorDialog } from '../components/Dialog';
 import TargetTable, { Target } from '../components/TargetTable';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001';
@@ -12,6 +13,7 @@ const MonitoredAssetsPage: React.FC = () => {
   const [isAdding, setIsAdding] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const fetchTargets = async () => {
     try {
@@ -39,7 +41,7 @@ const MonitoredAssetsPage: React.FC = () => {
       setShowForm(false);
     } catch (err: any) {
       console.error('Error adding target:', err);
-      alert(err.response?.data?.detail || 'Failed to add asset');
+      setErrorMsg(err.response?.data?.detail || 'Failed to add asset');
     } finally {
       setIsAdding(false);
     }
@@ -51,7 +53,7 @@ const MonitoredAssetsPage: React.FC = () => {
       await fetchTargets();
     } catch (err) {
       console.error('Error deleting target:', err);
-      alert('Failed to remove asset');
+      setErrorMsg('Failed to remove asset');
     }
   };
 
@@ -65,6 +67,7 @@ const MonitoredAssetsPage: React.FC = () => {
 
   return (
     <div>
+      {errorMsg && <ErrorDialog message={errorMsg} onClose={() => setErrorMsg(null)} />}
       {/* Page Header */}
       <header className="flex justify-between items-center mb-4 border-b border-panel-border pb-2">
         <div>

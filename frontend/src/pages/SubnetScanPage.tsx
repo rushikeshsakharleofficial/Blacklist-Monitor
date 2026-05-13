@@ -109,7 +109,7 @@ export default function SubnetScanPage() {
       setSubnetAdded(true);
     } catch (err: any) {
       if (err.response?.data?.detail?.includes('already exists')) setSubnetAdded(true);
-      else alert(err.response?.data?.detail || 'Failed to add subnet');
+      else setError(err.response?.data?.detail || 'Failed to add subnet');
     } finally {
       setMonitoringSubnet(false);
     }

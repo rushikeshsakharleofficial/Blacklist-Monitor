@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { Trash2, ExternalLink, X, Check } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { ConfirmDialog } from './Dialog';
+import { ConfirmDialog, ErrorDialog } from './Dialog';
 
 const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001';
 
@@ -45,6 +45,7 @@ const TargetTable: React.FC<Props> = ({ targets, onDelete, onBulkDelete }) => {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [confirmBulk, setConfirmBulk] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const allSelected = targets.length > 0 && targets.every(t => selected.has(t.id));
   const someSelected = selected.size > 0;
@@ -72,7 +73,7 @@ const TargetTable: React.FC<Props> = ({ targets, onDelete, onBulkDelete }) => {
       if (onBulkDelete) onBulkDelete(ids);
       else ids.forEach(id => onDelete(id));
     } catch (ex: any) {
-      alert(ex.response?.data?.detail || 'Bulk delete failed');
+      setErrorMsg(ex.response?.data?.detail || 'Bulk delete failed');
     } finally {
       setBulkDeleting(false);
     }
@@ -88,6 +89,7 @@ const TargetTable: React.FC<Props> = ({ targets, onDelete, onBulkDelete }) => {
 
   return (
     <>
+      {errorMsg && <ErrorDialog message={errorMsg} onClose={() => setErrorMsg(null)} />}
       {confirmBulk && (
         <ConfirmDialog
           danger
