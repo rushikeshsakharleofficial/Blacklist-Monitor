@@ -22,7 +22,7 @@ const TargetTable: React.FC<TargetTableProps> = ({ targets, onDelete }) => {
     }
 
     const now = new Date();
-    const date = new Date(dateStr);
+    const date = new Date(dateStr.endsWith('Z') || dateStr.includes('+') ? dateStr : dateStr + 'Z');
     const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
 
     if (seconds < 60) {

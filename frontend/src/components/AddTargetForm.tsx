@@ -101,7 +101,7 @@ const AddTargetForm: React.FC<AddTargetFormProps> = ({ onAdd, isLoading }) => {
       </form>
       <p className="text-[11px] text-slate-400 mt-3 font-medium flex items-center gap-1">
         <Shield size={12} />
-        Assets are checked against 100+ global blacklists every 30 minutes.
+        Assets are checked against major DNSBL blacklists every 30 minutes.
       </p>
     </div>
   );

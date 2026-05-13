@@ -1,7 +1,10 @@
 import os
+import logging
 import requests
 import smtplib
 from email.mime.text import MIMEText
+
+logger = logging.getLogger(__name__)
 
 SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL")
 SMTP_SERVER = os.getenv("SMTP_SERVER")
@@ -18,7 +21,7 @@ def send_slack_alert(target_address: str, status: bool):
     try:
         requests.post(SLACK_WEBHOOK_URL, json={"text": message})
     except Exception as e:
-        print(f"Error sending Slack alert: {e}")
+        logger.error("slack_alert_error", extra={"error": str(e)})
 
 def send_email_alert(target_address: str, status: bool):
     if not all([SMTP_SERVER, SMTP_USER, SMTP_PASSWORD, ALERT_EMAIL_TO]):
@@ -38,4 +41,4 @@ def send_email_alert(target_address: str, status: bool):
             server.login(SMTP_USER, SMTP_PASSWORD)
             server.send_message(msg)
     except Exception as e:
-        print(f"Error sending email alert: {e}")
+        logger.error("email_alert_error", extra={"error": str(e)})

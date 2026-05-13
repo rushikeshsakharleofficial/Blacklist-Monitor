@@ -19,19 +19,20 @@ def monitor_target_task(target_id: int):
             return "Target not found"
 
         logger.info("check_start", extra={"address": target.address, "target_type": target.target_type})
+        previous_state = target.is_blacklisted
         is_listed = check_target(target.address, target.target_type)
 
         target.is_blacklisted = is_listed
-        target.last_checked = datetime.datetime.utcnow()
+        target.last_checked = datetime.datetime.now(datetime.timezone.utc)
 
-        if is_listed:
+        if is_listed and not previous_state:
             send_slack_alert(target.address, is_listed)
             send_email_alert(target.address, is_listed)
 
         db.add(CheckHistory(
             target_id=target.id,
             status=is_listed,
-            details=f"Checked via DNSBL on {datetime.datetime.utcnow()}",
+            details=f"Checked via DNSBL on {datetime.datetime.now(datetime.timezone.utc).isoformat()}",
         ))
         db.commit()
         result = "Listed" if is_listed else "Clean"
