@@ -2,15 +2,25 @@ import json
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
+from typing import Optional
 from .. import models
 from ..auth import get_db, require
-from ..alerts import channels_status, test_slack, test_email, TEMPLATE_KEYS
+from ..alerts import channels_status, test_slack, test_email, TEMPLATE_KEYS, _CFG_PREFIX, _CFG_KEYS
 
 router = APIRouter(prefix="/alerts", tags=["alerts"])
 
 
 class TemplateUpdate(BaseModel):
     templates: dict[str, str]
+
+
+class ChannelConfig(BaseModel):
+    slack_webhook: Optional[str] = None
+    smtp_server: Optional[str] = None
+    smtp_port: Optional[str] = None
+    smtp_user: Optional[str] = None
+    smtp_password: Optional[str] = None
+    smtp_to: Optional[str] = None
 
 
 @router.get("", dependencies=[Depends(require("alerts:read"))])
@@ -40,18 +50,62 @@ def list_alerts(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
 
 
 @router.get("/channels", dependencies=[Depends(require("alerts:read"))])
-def get_channels():
-    return channels_status()
+def get_channels(db: Session = Depends(get_db)):
+    return channels_status(db)
+
+
+@router.get("/config", dependencies=[Depends(require("alerts:configure"))])
+def get_channel_config(db: Session = Depends(get_db)):
+    """Return current DB-stored config (passwords masked)."""
+    rows = {
+        r.key.removeprefix(_CFG_PREFIX): r.value
+        for r in db.query(models.AppSetting).filter(models.AppSetting.key.like(f"{_CFG_PREFIX}%")).all()
+    }
+    result = {}
+    for k in _CFG_KEYS:
+        val = rows.get(k, "")
+        # Mask passwords
+        if k in ("slack_webhook", "smtp_password") and val:
+            result[k] = "••••••••"
+            result[f"{k}_set"] = True
+        else:
+            result[k] = val
+            result[f"{k}_set"] = bool(val)
+    return result
+
+
+@router.put("/config", dependencies=[Depends(require("alerts:configure"))])
+def update_channel_config(body: ChannelConfig, db: Session = Depends(get_db)):
+    updates = body.model_dump(exclude_none=True)
+    for key, value in updates.items():
+        if key not in _CFG_KEYS:
+            continue
+        # Skip masked placeholder values
+        if value == "••••••••":
+            continue
+        db_key = f"{_CFG_PREFIX}{key}"
+        setting = db.query(models.AppSetting).filter(models.AppSetting.key == db_key).first()
+        if value == "":
+            # Empty string = clear the override (fall back to env)
+            if setting:
+                db.delete(setting)
+        else:
+            if setting:
+                setting.value = value
+            else:
+                db.add(models.AppSetting(key=db_key, value=value))
+    db.commit()
+    return {"updated": list(updates.keys())}
 
 
 @router.post("/test/slack", dependencies=[Depends(require("alerts:configure"))])
-def send_test_slack():
-    return test_slack()
+def send_test_slack(db: Session = Depends(get_db)):
+    return test_slack(db)
 
 
 @router.post("/test/email", dependencies=[Depends(require("alerts:configure"))])
-def send_test_email():
-    return test_email()
+def send_test_email(db: Session = Depends(get_db)):
+    return test_email(db)
 
 
 @router.get("/templates", dependencies=[Depends(require("alerts:read"))])

@@ -9,12 +9,48 @@ import requests
 
 logger = logging.getLogger(__name__)
 
-SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL", "")
-SMTP_SERVER = os.getenv("SMTP_SERVER", "")
-SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
-SMTP_USER = os.getenv("SMTP_USER", "")
-SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
-ALERT_EMAIL_TO = os.getenv("ALERT_EMAIL_TO", "")
+# Env-var defaults (lowest priority)
+_ENV = {
+    "slack_webhook":  os.getenv("SLACK_WEBHOOK_URL", ""),
+    "smtp_server":    os.getenv("SMTP_SERVER", ""),
+    "smtp_port":      os.getenv("SMTP_PORT", "587"),
+    "smtp_user":      os.getenv("SMTP_USER", ""),
+    "smtp_password":  os.getenv("SMTP_PASSWORD", ""),
+    "smtp_to":        os.getenv("ALERT_EMAIL_TO", ""),
+}
+
+# DB setting key prefix for channel config
+_CFG_PREFIX = "alert_cfg_"
+_CFG_KEYS = ["slack_webhook", "smtp_server", "smtp_port", "smtp_user", "smtp_password", "smtp_to"]
+
+
+def _get_cfg(key: str, db=None) -> str:
+    """Return channel config value: DB override first, then env var."""
+    if db is not None:
+        try:
+            from . import models
+            row = db.query(models.AppSetting).filter(
+                models.AppSetting.key == f"{_CFG_PREFIX}{key}"
+            ).first()
+            if row and row.value:
+                return row.value
+        except Exception:
+            pass
+    return _ENV.get(key, "")
+
+
+def _cfg(db=None) -> dict:
+    """Return all resolved channel config values."""
+    return {k: _get_cfg(k, db) for k in _CFG_KEYS}
+
+
+# Module-level accessors kept for backward compat — resolve from env only
+SLACK_WEBHOOK_URL = _ENV["slack_webhook"]
+SMTP_SERVER       = _ENV["smtp_server"]
+SMTP_PORT         = int(_ENV["smtp_port"] or 587)
+SMTP_USER         = _ENV["smtp_user"]
+SMTP_PASSWORD     = _ENV["smtp_password"]
+ALERT_EMAIL_TO    = _ENV["smtp_to"]
 
 # ── Default templates ─────────────────────────────────────────────────────────
 # Variables available: {address}, {from_status}, {to_status}, {timestamp}, {emoji}
@@ -216,40 +252,47 @@ def _render(template: str, address: str, from_status: str, to_status: str) -> st
     )
 
 
-def channels_status() -> dict:
+def channels_status(db=None) -> dict:
+    c = _cfg(db)
     return {
-        "slack": {"configured": bool(SLACK_WEBHOOK_URL)},
+        "slack": {
+            "configured": bool(c["slack_webhook"]),
+            "webhook_set": bool(c["slack_webhook"]),
+            "source": "db" if (_get_cfg("slack_webhook", db) and not _ENV["slack_webhook"]) else ("env" if _ENV["slack_webhook"] else "none"),
+        },
         "email": {
-            "configured": bool(SMTP_SERVER and SMTP_USER and SMTP_PASSWORD and ALERT_EMAIL_TO),
-            "to": ALERT_EMAIL_TO or None,
-            "server": SMTP_SERVER or None,
+            "configured": bool(c["smtp_server"] and c["smtp_user"] and c["smtp_password"] and c["smtp_to"]),
+            "to": c["smtp_to"] or None,
+            "server": c["smtp_server"] or None,
+            "port": int(c["smtp_port"] or 587),
+            "user": c["smtp_user"] or None,
         },
     }
 
 
-def _send_slack_payload(payload_str: str) -> bool:
+def _send_slack_payload(payload_str: str, webhook: str) -> bool:
     try:
         try:
             payload = json.loads(payload_str)
         except Exception:
             payload = {"text": payload_str}
-        r = requests.post(SLACK_WEBHOOK_URL, json=payload, timeout=10)
+        r = requests.post(webhook, json=payload, timeout=10)
         return r.status_code == 200
     except Exception as e:
         logger.error("slack_alert_error", extra={"error": str(e)})
         return False
 
 
-def _send_email(subject: str, html_body: str) -> bool:
+def _send_email(subject: str, html_body: str, c: dict) -> bool:
     try:
         msg = MIMEMultipart("alternative")
         msg["Subject"] = subject
-        msg["From"] = SMTP_USER
-        msg["To"] = ALERT_EMAIL_TO
+        msg["From"] = c["smtp_user"]
+        msg["To"] = c["smtp_to"]
         msg.attach(MIMEText(html_body, "html"))
-        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=10) as server:
+        with smtplib.SMTP(c["smtp_server"], int(c["smtp_port"] or 587), timeout=10) as server:
             server.starttls()
-            server.login(SMTP_USER, SMTP_PASSWORD)
+            server.login(c["smtp_user"], c["smtp_password"])
             server.send_message(msg)
         return True
     except Exception as e:
@@ -262,20 +305,21 @@ def send_alerts(target_address: str, to_status: bool, from_status: bool | None =
     from_label = "new" if from_status is None else ("listed" if from_status else "clean")
     tpl_suffix = "listed" if to_status else "clean"
 
+    c = _cfg(db)
     notified: list[str] = []
 
-    if SLACK_WEBHOOK_URL:
+    if c["slack_webhook"]:
         raw = _get_template(f"slack_{tpl_suffix}", db)
         rendered = _render(raw, target_address, from_label, to_label)
-        if _send_slack_payload(rendered):
+        if _send_slack_payload(rendered, c["slack_webhook"]):
             notified.append("slack")
 
-    if SMTP_SERVER and SMTP_USER and SMTP_PASSWORD and ALERT_EMAIL_TO:
+    if c["smtp_server"] and c["smtp_user"] and c["smtp_password"] and c["smtp_to"]:
         subj_raw = _get_template(f"email_subject_{tpl_suffix}", db)
         body_raw = _get_template(f"email_body_{tpl_suffix}", db)
         subject = _render(subj_raw, target_address, from_label, to_label)
         body = _render(body_raw, target_address, from_label, to_label)
-        if _send_email(subject, body):
+        if _send_email(subject, body, c):
             notified.append("email")
 
     if db is not None:
@@ -303,22 +347,24 @@ def send_email_alert(target_address: str, status: bool):
     pass
 
 
-def test_slack() -> dict:
-    if not SLACK_WEBHOOK_URL:
-        return {"ok": False, "error": "SLACK_WEBHOOK_URL not configured"}
+def test_slack(db=None) -> dict:
+    webhook = _get_cfg("slack_webhook", db)
+    if not webhook:
+        return {"ok": False, "error": "Slack webhook not configured — set it in panel or SLACK_WEBHOOK_URL env var"}
     ok = _send_slack_payload(json.dumps({
         "blocks": [
             {"type": "header", "text": {"type": "plain_text", "text": "🔔 Test Notification", "emoji": True}},
             {"type": "section", "text": {"type": "mrkdwn", "text": "This is a *test alert* from BlacklistTrailer. Your Slack integration is working correctly. ✅"}},
         ],
         "attachments": [{"color": "#336699", "fallback": "BlacklistTrailer test notification"}]
-    }))
+    }), webhook)
     return {"ok": ok, "error": None if ok else "Slack returned non-200. Check your webhook URL."}
 
 
-def test_email() -> dict:
-    if not all([SMTP_SERVER, SMTP_USER, SMTP_PASSWORD, ALERT_EMAIL_TO]):
-        return {"ok": False, "error": "SMTP settings incomplete"}
+def test_email(db=None) -> dict:
+    c = _cfg(db)
+    if not all([c["smtp_server"], c["smtp_user"], c["smtp_password"], c["smtp_to"]]):
+        return {"ok": False, "error": "SMTP settings incomplete — configure in panel or set SMTP_* env vars"}
     ok = _send_email(
         "🔔 BlacklistTrailer — Test Alert",
         """<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;background:#f5f5f5;padding:32px;">
@@ -334,5 +380,6 @@ def test_email() -> dict:
     <p style="margin:0;font-size:11px;color:#8ab4c8;">BlacklistTrailer Monitoring Platform</p>
   </td></tr>
 </table></body></html>""",
+        c,
     )
     return {"ok": ok, "error": None if ok else "Failed to send email. Check SMTP settings."}

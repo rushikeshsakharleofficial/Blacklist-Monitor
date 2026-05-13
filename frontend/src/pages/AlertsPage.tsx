@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import { Bell, RefreshCw, CheckCircle, XCircle, Send, RotateCcw, ChevronLeft, ChevronRight, Edit2, X, Check } from 'lucide-react';
+import { Bell, RefreshCw, CheckCircle, XCircle, Send, RotateCcw, ChevronLeft, ChevronRight, Edit2, X, Check, Settings } from 'lucide-react';
 
 const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001';
 
@@ -44,6 +44,12 @@ function StatusChange({ from, to }: { from: string; to: string }) {
   );
 }
 
+interface CfgForm {
+  slack_webhook: string;
+  smtp_server: string; smtp_port: string; smtp_user: string;
+  smtp_password: string; smtp_to: string;
+}
+
 export default function AlertsPage() {
   const [channels, setChannels]       = useState<ChannelStatus | null>(null);
   const [alerts, setAlerts]           = useState<AlertItem[]>([]);
@@ -56,6 +62,10 @@ export default function AlertsPage() {
   const [editValue, setEditValue]     = useState('');
   const [saving, setSaving]           = useState(false);
   const [page, setPage]               = useState(1);
+  const [showCfg, setShowCfg]         = useState(false);
+  const [cfgForm, setCfgForm]         = useState<CfgForm>({ slack_webhook: '', smtp_server: '', smtp_port: '587', smtp_user: '', smtp_password: '', smtp_to: '' });
+  const [cfgSaving, setCfgSaving]     = useState(false);
+  const [cfgMsg, setCfgMsg]           = useState<string | null>(null);
   const pageSize = 50;
 
   const myPermissions: string[] = JSON.parse(localStorage.getItem('permissions') || '[]');
@@ -64,15 +74,27 @@ export default function AlertsPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [chRes, alRes, tplRes] = await Promise.all([
+      const [chRes, alRes, tplRes, cfgRes] = await Promise.all([
         axios.get(`${API}/alerts/channels`),
         axios.get(`${API}/alerts?skip=${(page - 1) * pageSize}&limit=${pageSize}`),
         canConfigure ? axios.get(`${API}/alerts/templates`) : Promise.resolve(null),
+        canConfigure ? axios.get(`${API}/alerts/config`) : Promise.resolve(null),
       ]);
       setChannels(chRes.data);
       setAlerts(alRes.data.items);
       setTotal(alRes.data.total);
       if (tplRes) setTemplates(tplRes.data);
+      if (cfgRes) {
+        const d = cfgRes.data;
+        setCfgForm({
+          slack_webhook: d.slack_webhook_set ? '••••••••' : '',
+          smtp_server: d.smtp_server || '',
+          smtp_port: d.smtp_port || '587',
+          smtp_user: d.smtp_user || '',
+          smtp_password: d.smtp_password_set ? '••••••••' : '',
+          smtp_to: d.smtp_to || '',
+        });
+      }
     } catch {}
     setLoading(false);
   }, [page, canConfigure]);
@@ -89,6 +111,18 @@ export default function AlertsPage() {
       setTestResults(r => ({ ...r, [ch]: { ok: false, error: ex.response?.data?.detail || 'Request failed' } }));
     }
     setTesting(t => ({ ...t, [ch]: false }));
+  };
+
+  const saveCfg = async () => {
+    setCfgSaving(true); setCfgMsg(null);
+    try {
+      await axios.put(`${API}/alerts/config`, cfgForm);
+      setCfgMsg('Saved successfully');
+      await load();
+    } catch (ex: any) {
+      setCfgMsg(ex.response?.data?.detail || 'Save failed');
+    }
+    setCfgSaving(false);
   };
 
   const saveEdit = async () => {
@@ -169,6 +203,66 @@ export default function AlertsPage() {
           );
         })}
       </div>
+
+      {/* Channel config panel */}
+      {canConfigure && (
+        <div className="border border-panel-border">
+          <div className="flex items-center gap-2 px-3 py-2 border-b border-panel-border cursor-pointer" style={{ background: '#2c3e50' }}
+            onClick={() => setShowCfg(v => !v)}>
+            <Settings size={13} className="text-[#8ab4c8]" />
+            <span className="text-white text-[11px] font-bold uppercase tracking-wider">Channel Configuration</span>
+            <span className="ml-auto text-[#8ab4c8] text-[10px]">{showCfg ? 'Hide ▲' : 'Configure ▼'}</span>
+          </div>
+          {showCfg && (
+            <div className="bg-white p-4 grid grid-cols-2 gap-4">
+              {/* Slack */}
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-widest text-muted mb-2">Slack</p>
+                <label className="block text-[10px] font-bold uppercase text-foreground mb-1">Webhook URL</label>
+                <input type="password" value={cfgForm.slack_webhook}
+                  onChange={e => setCfgForm(f => ({ ...f, slack_webhook: e.target.value }))}
+                  placeholder="https://hooks.slack.com/services/…"
+                  className="w-full px-2.5 py-1.5 text-xs border border-panel-border font-mono focus:outline-none focus:border-primary"
+                  style={{ borderRadius: 2 }} />
+                <p className="text-[10px] text-muted mt-1">Leave blank to use SLACK_WEBHOOK_URL env var. Enter new value to override.</p>
+              </div>
+              {/* Email */}
+              <div className="space-y-2">
+                <p className="text-[11px] font-bold uppercase tracking-widest text-muted mb-1">Email / SMTP</p>
+                {[
+                  { key: 'smtp_server', label: 'SMTP Server', placeholder: 'smtp.gmail.com', type: 'text' },
+                  { key: 'smtp_port',   label: 'Port',        placeholder: '587', type: 'text' },
+                  { key: 'smtp_user',   label: 'Username',    placeholder: 'you@example.com', type: 'text' },
+                  { key: 'smtp_password', label: 'Password',  placeholder: '••••••••', type: 'password' },
+                  { key: 'smtp_to',     label: 'Send Alerts To', placeholder: 'alerts@example.com', type: 'text' },
+                ].map(({ key, label, placeholder, type }) => (
+                  <div key={key}>
+                    <label className="block text-[10px] font-bold uppercase text-foreground mb-1">{label}</label>
+                    <input type={type} value={(cfgForm as any)[key]}
+                      onChange={e => setCfgForm(f => ({ ...f, [key]: e.target.value }))}
+                      placeholder={placeholder}
+                      className="w-full px-2.5 py-1.5 text-xs border border-panel-border font-mono focus:outline-none focus:border-primary"
+                      style={{ borderRadius: 2 }} />
+                  </div>
+                ))}
+              </div>
+              <div className="col-span-2 flex items-center gap-3">
+                <button onClick={saveCfg} disabled={cfgSaving}
+                  className="flex items-center gap-1 px-4 py-1.5 text-xs font-bold uppercase text-white border border-[#2a5580] disabled:opacity-50"
+                  style={{ background: '#336699', borderRadius: 2 }}>
+                  <Check size={12} /> {cfgSaving ? 'Saving…' : 'Save Configuration'}
+                </button>
+                {cfgMsg && (
+                  <span className={`text-[11px] font-bold ${cfgMsg.includes('success') ? 'text-success' : 'text-danger'}`}>
+                    {cfgMsg}
+                  </span>
+                )}
+                <span className="text-[10px] text-muted ml-auto">DB settings override env vars. Clear a field to revert to env var.</span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Template editor */}
       {canConfigure && templates && (
