@@ -12,6 +12,7 @@ import ReportsPage from './pages/ReportsPage';
 import SettingsPage from './pages/SettingsPage';
 import TargetDetailPage from './pages/TargetDetailPage';
 import ProblemsPage from './pages/ProblemsPage';
+import SetupPage from './pages/SetupPage';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001';
 const STORAGE_KEY = 'api_key';
@@ -118,15 +119,18 @@ function Dashboard({ apiBaseUrl }: { apiBaseUrl: string }) {
 function App() {
   const storedKey = localStorage.getItem(STORAGE_KEY) ?? '';
   const storedEmail = localStorage.getItem(EMAIL_KEY) ?? '';
+  // Set synchronously so child components can use it on first render/fetch
+  if (storedKey) axios.defaults.headers.common['X-API-Key'] = storedKey;
   const [isLoggedIn, setIsLoggedIn] = useState(storedKey !== '');
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
   const [loginError, setLoginError] = useState<string | null>(null);
   const navigate = useNavigate();
 
+  // Check setup status on load; redirect to /setup if not configured
   useEffect(() => {
-    if (storedKey) {
-      axios.defaults.headers.common['X-API-Key'] = storedKey;
-    }
+    axios.get(`${API_BASE_URL}/setup-status`).then(res => {
+      if (res.data.needs_setup) navigate('/setup', { replace: true });
+    }).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -147,18 +151,20 @@ function App() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const key = loginForm.password;
-    axios.defaults.headers.common['X-API-Key'] = key;
     try {
-      await axios.get(`${API_BASE_URL}/targets/`);
-      localStorage.setItem(STORAGE_KEY, key);
-      localStorage.setItem(EMAIL_KEY, loginForm.email);
+      const res = await axios.post(`${API_BASE_URL}/auth/login`, {
+        email: loginForm.email,
+        password: loginForm.password,
+      });
+      const { api_key, email } = res.data;
+      axios.defaults.headers.common['X-API-Key'] = api_key;
+      localStorage.setItem(STORAGE_KEY, api_key);
+      localStorage.setItem(EMAIL_KEY, email);
       setLoginError(null);
       setIsLoggedIn(true);
       navigate('/dashboard', { replace: true });
     } catch (err: any) {
-      delete axios.defaults.headers.common['X-API-Key'];
-      setLoginError('Invalid API key. Check your configuration.');
+      setLoginError(err.response?.data?.detail || 'Invalid email or password.');
     }
   };
 
@@ -194,13 +200,13 @@ function App() {
                 />
               </div>
               <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wide text-foreground mb-1">API Key</label>
+                <label className="block text-[10px] font-bold uppercase tracking-wide text-foreground mb-1">Password</label>
                 <input
                   type="password"
                   required
                   value={loginForm.password}
                   onChange={e => setLoginForm({...loginForm, password: e.target.value})}
-                  placeholder="••••••••••••"
+                  placeholder="Your password"
                   className="w-full px-2.5 py-1.5 text-xs border border-panel-border font-mono focus:outline-none focus:border-primary"
                   style={{ borderRadius: 2 }}
                 />
@@ -224,6 +230,7 @@ function App() {
   if (!isLoggedIn) {
     return (
       <Routes>
+        <Route path="/setup" element={<SetupPage />} />
         <Route path="/login" element={loginPage} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
@@ -231,9 +238,11 @@ function App() {
   }
 
   return (
-    <div className="flex bg-background min-h-screen text-foreground font-sans">
-      <Sidebar email={storedEmail} onLogout={handleLogout} />
-      <main className="flex-1 p-4 overflow-y-auto">
+    <div className="flex h-screen overflow-hidden bg-background text-foreground font-sans">
+      <div className="shrink-0 h-full overflow-y-auto">
+        <Sidebar email={storedEmail} onLogout={handleLogout} />
+      </div>
+      <main className="flex-1 p-4 overflow-y-auto h-full">
         <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/login" element={<Navigate to="/dashboard" replace />} />

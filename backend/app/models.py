@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, Index
+from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, Index, func
 from sqlalchemy.orm import relationship
 import datetime
 from .database import Base
@@ -39,3 +39,13 @@ class CheckHistory(Base):
         # Covering index: satisfies WHERE target_id=? ORDER BY checked_at DESC in one shot
         Index("ix_check_history_target_checked_at", "target_id", "checked_at"),
     )
+
+
+class AdminUser(Base):
+    __tablename__ = "admin_users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, unique=True, nullable=False, index=True)
+    hashed_password = Column(String, nullable=False)
+    api_key = Column(String, nullable=False, unique=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

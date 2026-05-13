@@ -2,9 +2,11 @@ import os
 import re
 import time
 import logging
+import secrets
 import datetime as dt
 from typing import Optional
 import asyncio
+import bcrypt
 from fastapi import FastAPI, Depends, HTTPException, Security, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import APIKeyHeader
@@ -21,6 +23,15 @@ setup_logging()
 logger = logging.getLogger(__name__)
 
 models.Base.metadata.create_all(bind=database.engine)
+
+
+def _hash_pw(password: str) -> str:
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+
+
+def _verify_pw(password: str, hashed: str) -> bool:
+    return bcrypt.checkpw(password.encode(), hashed.encode())
+
 
 limiter = Limiter(key_func=get_remote_address)
 _docs_enabled = os.getenv("ENABLE_DOCS", "false").lower() == "true"
@@ -46,10 +57,15 @@ API_KEY = os.getenv("API_KEY", "")
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=True)
 
 
-def verify_api_key(key: str = Security(api_key_header)):
-    if not API_KEY or key != API_KEY:
-        raise HTTPException(status_code=401, detail="Invalid API key")
-    return key
+class SetupRequest(BaseModel):
+    email: str
+    password: str
+    api_key: str = ""
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
 
 
 class TargetCreate(BaseModel):
@@ -94,6 +110,16 @@ def get_db():
         db.close()
 
 
+def verify_api_key(key: str = Security(api_key_header), db: Session = Depends(get_db)):
+    admin = db.query(models.AdminUser).filter(models.AdminUser.api_key == key).first()
+    if admin:
+        return key
+    # Fallback to env var for backward compatibility / pre-setup
+    if API_KEY and key == API_KEY:
+        return key
+    raise HTTPException(status_code=401, detail="Invalid API key")
+
+
 def infer_target_type(value: str) -> str:
     ip_pattern = r"^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$"
     if re.match(ip_pattern, value):
@@ -119,6 +145,43 @@ async def log_requests(request: Request, call_next):
 @app.get("/health")
 def health_check():
     return {"status": "ok"}
+
+
+@app.get("/setup-status")
+def setup_status(db: Session = Depends(get_db)):
+    has_admin = db.query(models.AdminUser).first() is not None
+    return {"needs_setup": not has_admin}
+
+
+@app.post("/setup")
+@limiter.limit("5/minute")
+def setup(request: Request, body: SetupRequest, db: Session = Depends(get_db)):
+    if db.query(models.AdminUser).first():
+        raise HTTPException(status_code=400, detail="Already configured. Use login.")
+    email = body.email.strip().lower()
+    if not email or not body.password:
+        raise HTTPException(status_code=422, detail="Email and password required")
+    if len(body.password) < 8:
+        raise HTTPException(status_code=422, detail="Password must be at least 8 characters")
+    api_key = body.api_key.strip() or secrets.token_urlsafe(32)
+    hashed = _hash_pw(body.password)
+    admin = models.AdminUser(email=email, hashed_password=hashed, api_key=api_key)
+    db.add(admin)
+    db.commit()
+    logger.info("admin_created", extra={"email": email})
+    return {"message": "Setup complete", "api_key": api_key}
+
+
+@app.post("/auth/login")
+@limiter.limit("10/minute")
+def login(request: Request, body: LoginRequest, db: Session = Depends(get_db)):
+    admin = db.query(models.AdminUser).filter(
+        models.AdminUser.email == body.email.strip().lower()
+    ).first()
+    if not admin or not _verify_pw(body.password, admin.hashed_password):
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    logger.info("admin_login", extra={"email": admin.email})
+    return {"api_key": admin.api_key, "email": admin.email}
 
 
 @app.get("/dnsbl-providers", dependencies=[Depends(verify_api_key)])
