@@ -10,6 +10,7 @@ interface ScanResult {
   hits: string[];
   is_blacklisted: boolean;
   total_checked: number;
+  org: string | null;
 }
 
 interface ScanResponse {
@@ -231,6 +232,7 @@ export default function SubnetScanPage() {
                 <tr style={{ background: '#2c3e50', color: 'white' }}>
                   <th className="px-3 py-2 text-left text-[10px] uppercase font-bold tracking-wide border border-[#3d5166] w-20">Status</th>
                   <th className="px-3 py-2 text-left text-[10px] uppercase font-bold tracking-wide border border-[#3d5166] w-36">IP Address</th>
+                  <th className="px-3 py-2 text-left text-[10px] uppercase font-bold tracking-wide border border-[#3d5166] w-44">Provider / Org</th>
                   <th className="px-3 py-2 text-left text-[10px] uppercase font-bold tracking-wide border border-[#3d5166]">Listed On</th>
                   <th className="px-3 py-2 text-left text-[10px] uppercase font-bold tracking-wide border border-[#3d5166] w-16">Hits</th>
                   <th className="px-3 py-2 text-left text-[10px] uppercase font-bold tracking-wide border border-[#3d5166] w-28">Action</th>
@@ -245,6 +247,7 @@ export default function SubnetScanPage() {
                       </span>
                     </td>
                     <td className="px-3 py-1.5 border border-panel-border font-mono font-bold text-foreground">{r.ip}</td>
+                    <td className="px-3 py-1.5 border border-panel-border text-[10px] text-muted truncate max-w-[176px]" title={r.org || ''}>{r.org || '—'}</td>
                     <td className="px-3 py-1.5 border border-panel-border">
                       {r.hits.length > 0 ? (
                         <div className="flex flex-wrap gap-1">

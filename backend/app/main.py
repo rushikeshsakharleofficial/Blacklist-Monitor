@@ -283,6 +283,7 @@ def scan_subnet_start(request: Request, body: SubnetScanRequest):
     _rclient.setex(f"scan:{scan_id}:done", TTL, 0)
 
     def _run():
+        subnet_org = checker.lookup_org(str(net.network_address))
         with ThreadPoolExecutor(max_workers=workers) as executor:
             futures = {executor.submit(checker.check_dnsbl, ip): ip for ip in ips}
             try:
@@ -295,6 +296,7 @@ def scan_subnet_start(request: Request, body: SubnetScanRequest):
                     _rclient.rpush(f"scan:{scan_id}:results", json.dumps({
                         "ip": ip, "hits": hits, "is_blacklisted": bool(hits),
                         "total_checked": len(checker.COMMON_DNSBLS),
+                        "org": subnet_org,
                     }))
                     _rclient.expire(f"scan:{scan_id}:results", TTL)
                     _rclient.incr(f"scan:{scan_id}:done")
