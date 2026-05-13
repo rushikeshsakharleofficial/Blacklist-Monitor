@@ -17,6 +17,8 @@ import SetupPage from './pages/SetupPage';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001';
 const STORAGE_KEY = 'api_key';
 const EMAIL_KEY = 'user_email';
+const NAME_KEY = 'user_name';
+const EXPIRY_KEY = 'session_expiry';
 
 function Dashboard({ apiBaseUrl }: { apiBaseUrl: string }) {
   const [targets, setTargets] = useState<Target[]>([]);
@@ -117,12 +119,19 @@ function Dashboard({ apiBaseUrl }: { apiBaseUrl: string }) {
 }
 
 function App() {
-  const storedKey = localStorage.getItem(STORAGE_KEY) ?? '';
-  const storedEmail = localStorage.getItem(EMAIL_KEY) ?? '';
+  // Check session expiry before reading stored credentials
+  const expiry = localStorage.getItem(EXPIRY_KEY);
+  const isExpired = expiry ? Date.now() > parseInt(expiry) : false;
+  if (isExpired) {
+    [STORAGE_KEY, EMAIL_KEY, NAME_KEY, EXPIRY_KEY].forEach(k => localStorage.removeItem(k));
+  }
+  const storedKey = isExpired ? '' : (localStorage.getItem(STORAGE_KEY) ?? '');
+  const storedEmail = isExpired ? '' : (localStorage.getItem(EMAIL_KEY) ?? '');
+  const storedName = isExpired ? '' : (localStorage.getItem(NAME_KEY) ?? '');
   // Set synchronously so child components can use it on first render/fetch
   if (storedKey) axios.defaults.headers.common['X-API-Key'] = storedKey;
   const [isLoggedIn, setIsLoggedIn] = useState(storedKey !== '');
-  const [loginForm, setLoginForm] = useState({ email: '', password: '' });
+  const [loginForm, setLoginForm] = useState({ email: '', password: '', rememberMe: true });
   const [loginError, setLoginError] = useState<string | null>(null);
   const navigate = useNavigate();
 
@@ -140,6 +149,8 @@ function App() {
         if (err.response?.status === 401) {
           localStorage.removeItem(STORAGE_KEY);
           localStorage.removeItem(EMAIL_KEY);
+          localStorage.removeItem(NAME_KEY);
+          localStorage.removeItem(EXPIRY_KEY);
           delete axios.defaults.headers.common['X-API-Key'];
           setIsLoggedIn(false);
         }
@@ -156,10 +167,16 @@ function App() {
         email: loginForm.email,
         password: loginForm.password,
       });
-      const { api_key, email } = res.data;
+      const { api_key, email, name } = res.data;
       axios.defaults.headers.common['X-API-Key'] = api_key;
       localStorage.setItem(STORAGE_KEY, api_key);
       localStorage.setItem(EMAIL_KEY, email);
+      localStorage.setItem(NAME_KEY, name || '');
+      if (loginForm.rememberMe) {
+        localStorage.setItem(EXPIRY_KEY, String(Date.now() + 90 * 24 * 60 * 60 * 1000));
+      } else {
+        localStorage.removeItem(EXPIRY_KEY); // clears on next load if no expiry = session only
+      }
       setLoginError(null);
       setIsLoggedIn(true);
       navigate('/dashboard', { replace: true });
@@ -171,6 +188,8 @@ function App() {
   const handleLogout = () => {
     localStorage.removeItem(STORAGE_KEY);
     localStorage.removeItem(EMAIL_KEY);
+    localStorage.removeItem(NAME_KEY);
+    localStorage.removeItem(EXPIRY_KEY);
     delete axios.defaults.headers.common['X-API-Key'];
     setIsLoggedIn(false);
     navigate('/login', { replace: true });
@@ -211,6 +230,18 @@ function App() {
                   style={{ borderRadius: 2 }}
                 />
               </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="rememberMe"
+                  checked={loginForm.rememberMe}
+                  onChange={e => setLoginForm({ ...loginForm, rememberMe: e.target.checked })}
+                  className="w-3 h-3 border border-panel-border"
+                />
+                <label htmlFor="rememberMe" className="text-[10px] text-muted uppercase tracking-wide cursor-pointer select-none">
+                  Remember me for 90 days
+                </label>
+              </div>
               {loginError && <p className="text-danger text-[11px]">{loginError}</p>}
               <button
                 type="submit"
@@ -240,7 +271,7 @@ function App() {
   return (
     <div className="flex h-screen overflow-hidden bg-background text-foreground font-sans">
       <div className="shrink-0 h-full overflow-y-auto">
-        <Sidebar email={storedEmail} onLogout={handleLogout} />
+        <Sidebar email={storedEmail} name={storedName} onLogout={handleLogout} />
       </div>
       <main className="flex-1 p-4 overflow-y-auto h-full">
         <Routes>

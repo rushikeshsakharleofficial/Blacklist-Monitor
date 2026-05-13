@@ -61,6 +61,7 @@ class SetupRequest(BaseModel):
     email: str
     password: str
     api_key: str = ""
+    name: str = ""
 
 
 class LoginRequest(BaseModel):
@@ -165,7 +166,7 @@ def setup(request: Request, body: SetupRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=422, detail="Password must be at least 8 characters")
     api_key = body.api_key.strip() or secrets.token_urlsafe(32)
     hashed = _hash_pw(body.password)
-    admin = models.AdminUser(email=email, hashed_password=hashed, api_key=api_key)
+    admin = models.AdminUser(email=email, hashed_password=hashed, api_key=api_key, name=body.name.strip() or None)
     db.add(admin)
     db.commit()
     logger.info("admin_created", extra={"email": email})
@@ -181,7 +182,7 @@ def login(request: Request, body: LoginRequest, db: Session = Depends(get_db)):
     if not admin or not _verify_pw(body.password, admin.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid email or password")
     logger.info("admin_login", extra={"email": admin.email})
-    return {"api_key": admin.api_key, "email": admin.email}
+    return {"api_key": admin.api_key, "email": admin.email, "name": admin.name or ""}
 
 
 @app.get("/dnsbl-providers", dependencies=[Depends(verify_api_key)])

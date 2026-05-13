@@ -48,4 +48,5 @@ class AdminUser(Base):
     email = Column(String, unique=True, nullable=False, index=True)
     hashed_password = Column(String, nullable=False)
     api_key = Column(String, nullable=False, unique=True)
+    name = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

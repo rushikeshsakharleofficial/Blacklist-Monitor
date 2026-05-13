@@ -4,6 +4,7 @@ import { LayoutGrid, Shield, Bell, BarChart2, Settings, LogOut, AlertCircle } fr
 
 interface SidebarProps {
   email: string;
+  name: string;
   onLogout: () => void;
 }
 
@@ -16,8 +17,8 @@ const menuItems = [
   { icon: Settings,    label: 'Settings', to: '/settings' },
 ];
 
-const Sidebar: React.FC<SidebarProps> = ({ email, onLogout }) => (
-  <div className="w-[220px] min-h-screen bg-nav-bg flex flex-col border-r border-[#2d4057] shrink-0">
+const Sidebar: React.FC<SidebarProps> = ({ email, name, onLogout }) => (
+  <div className="w-[220px] h-full bg-nav-bg flex flex-col border-r border-[#2d4057] shrink-0">
     <div className="px-4 py-3 border-b border-[#2d4057]">
       <div className="flex items-center gap-2">
         <Shield size={16} className="text-[#336699]" />
@@ -49,10 +50,10 @@ const Sidebar: React.FC<SidebarProps> = ({ email, onLogout }) => (
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 min-w-0">
           <div className="w-6 h-6 rounded bg-[#336699] flex items-center justify-center text-white text-xs font-bold shrink-0">
-            {email ? email[0].toUpperCase() : '?'}
+            {name ? name[0].toUpperCase() : email ? email[0].toUpperCase() : '?'}
           </div>
           <div className="min-w-0">
-            <div className="text-nav-text text-[11px] font-medium truncate">{email.split('@')[0] || 'User'}</div>
+            <div className="text-nav-text text-[11px] font-medium truncate">{name || email.split('@')[0] || 'User'}</div>
             <div className="text-[#4a6a84] text-[10px]">API Access</div>
           </div>
         </div>

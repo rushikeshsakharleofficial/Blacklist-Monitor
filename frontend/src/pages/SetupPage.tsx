@@ -12,7 +12,7 @@ function generateKey(): string {
 
 export default function SetupPage() {
   const navigate = useNavigate();
-  const [form, setForm] = useState({ email: '', password: '', confirm: '', api_key: generateKey() });
+  const [form, setForm] = useState({ name: '', email: '', password: '', confirm: '', api_key: generateKey() });
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -31,6 +31,7 @@ export default function SetupPage() {
     setError(null);
     try {
       await axios.post(`${API_BASE_URL}/setup`, {
+        name: form.name,
         email: form.email,
         password: form.password,
         api_key: form.api_key,
@@ -54,6 +55,17 @@ export default function SetupPage() {
           <div className="bg-white p-5">
             <p className="text-[11px] text-muted mb-4">Create your admin account to get started.</p>
             <form onSubmit={handleSubmit} className="space-y-3">
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wide text-foreground mb-1">Full Name</label>
+                <input
+                  type="text"
+                  value={form.name}
+                  onChange={e => setForm({ ...form, name: e.target.value })}
+                  placeholder="John Doe"
+                  className="w-full px-2.5 py-1.5 text-xs border border-panel-border focus:outline-none focus:border-primary"
+                  style={{ borderRadius: 2 }}
+                />
+              </div>
               <div>
                 <label className="block text-[10px] font-bold uppercase tracking-wide text-foreground mb-1">Admin Email</label>
                 <input
