@@ -14,12 +14,15 @@ import TargetDetailPage from './pages/TargetDetailPage';
 import ProblemsPage from './pages/ProblemsPage';
 import SetupPage from './pages/SetupPage';
 import SubnetScanPage from './pages/SubnetScanPage';
+import UsersPage from './pages/UsersPage';
+import RolesPage from './pages/RolesPage';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001';
 const STORAGE_KEY = 'api_key';
 const EMAIL_KEY = 'user_email';
 const NAME_KEY = 'user_name';
 const EXPIRY_KEY = 'session_expiry';
+const PERMS_KEY = 'permissions';
 
 function Dashboard({ apiBaseUrl }: { apiBaseUrl: string }) {
   const [targets, setTargets] = useState<Target[]>([]);
@@ -127,7 +130,7 @@ function App() {
   const expiry = localStorage.getItem(EXPIRY_KEY);
   const isExpired = expiry ? Date.now() > parseInt(expiry) : false;
   if (isExpired) {
-    [STORAGE_KEY, EMAIL_KEY, NAME_KEY, EXPIRY_KEY].forEach(k => localStorage.removeItem(k));
+    [STORAGE_KEY, EMAIL_KEY, NAME_KEY, EXPIRY_KEY, PERMS_KEY].forEach(k => localStorage.removeItem(k));
   }
   const storedKey = isExpired ? '' : (localStorage.getItem(STORAGE_KEY) ?? '');
   const storedEmail = isExpired ? '' : (localStorage.getItem(EMAIL_KEY) ?? '');
@@ -151,10 +154,7 @@ function App() {
       (res) => res,
       (err) => {
         if (err.response?.status === 401) {
-          localStorage.removeItem(STORAGE_KEY);
-          localStorage.removeItem(EMAIL_KEY);
-          localStorage.removeItem(NAME_KEY);
-          localStorage.removeItem(EXPIRY_KEY);
+          [STORAGE_KEY, EMAIL_KEY, NAME_KEY, EXPIRY_KEY, PERMS_KEY, 'user_role'].forEach(k => localStorage.removeItem(k));
           delete axios.defaults.headers.common['X-API-Key'];
           setIsLoggedIn(false);
         }
@@ -171,11 +171,13 @@ function App() {
         email: loginForm.email,
         password: loginForm.password,
       });
-      const { api_key, email, name } = res.data;
+      const { api_key, email, name, permissions, role } = res.data;
       axios.defaults.headers.common['X-API-Key'] = api_key;
       localStorage.setItem(STORAGE_KEY, api_key);
       localStorage.setItem(EMAIL_KEY, email);
       localStorage.setItem(NAME_KEY, name || '');
+      localStorage.setItem(PERMS_KEY, JSON.stringify(permissions ?? []));
+      localStorage.setItem('user_role', role || '');
       if (loginForm.rememberMe) {
         localStorage.setItem(EXPIRY_KEY, String(Date.now() + 90 * 24 * 60 * 60 * 1000));
       } else {
@@ -194,6 +196,8 @@ function App() {
     localStorage.removeItem(EMAIL_KEY);
     localStorage.removeItem(NAME_KEY);
     localStorage.removeItem(EXPIRY_KEY);
+    localStorage.removeItem(PERMS_KEY);
+    localStorage.removeItem('user_role');
     delete axios.defaults.headers.common['X-API-Key'];
     setIsLoggedIn(false);
     navigate('/login', { replace: true });
@@ -275,7 +279,8 @@ function App() {
   return (
     <div className="flex h-screen overflow-hidden bg-background text-foreground font-sans">
       <div className="shrink-0 h-full overflow-y-auto">
-        <Sidebar email={storedEmail} name={storedName} onLogout={handleLogout} />
+        <Sidebar email={storedEmail} name={storedName} onLogout={handleLogout}
+          permissions={JSON.parse(localStorage.getItem(PERMS_KEY) || '[]')} />
       </div>
       <main className="flex-1 p-4 overflow-y-auto h-full">
         <Routes>
@@ -289,6 +294,8 @@ function App() {
           <Route path="/problems/:targetId" element={<TargetDetailPage />} />
           <Route path="/problems" element={<ProblemsPage />} />
           <Route path="/subnet-scan" element={<SubnetScanPage />} />
+          <Route path="/users" element={<UsersPage />} />
+          <Route path="/roles" element={<RolesPage />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </main>

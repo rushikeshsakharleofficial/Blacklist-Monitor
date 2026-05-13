@@ -9,10 +9,8 @@ import uuid
 import threading
 from typing import Optional
 import asyncio
-import bcrypt
-from fastapi import FastAPI, Depends, HTTPException, Security, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import APIKeyHeader
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -20,6 +18,9 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from . import models, database, tasks, checker
 from .logging_config import setup_logging
+from .auth import get_db, get_current_user, require, hash_password, verify_password, _user_permissions
+from .permissions import BUILTIN_ROLES
+from .routers import users as users_router, roles as roles_router, audit as audit_router
 import json
 
 setup_logging()
@@ -28,13 +29,31 @@ logger = logging.getLogger(__name__)
 models.Base.metadata.create_all(bind=database.engine)
 
 
-def _hash_pw(password: str) -> str:
-    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+def _seed_builtin_roles():
+    """Idempotent: create built-in roles at startup and assign super_admin to existing users."""
+    db = database.SessionLocal()
+    try:
+        for role_name, role_def in BUILTIN_ROLES.items():
+            role = db.query(models.Role).filter(models.Role.name == role_name).first()
+            if not role:
+                role = models.Role(name=role_name, description=role_def["description"], is_builtin=True)
+                db.add(role)
+                db.flush()
+                for perm in sorted(role_def["permissions"]):
+                    db.add(models.RolePermission(role_id=role.id, permission=perm))
+        db.commit()
+        # Assign super_admin to any users that don't yet have a role
+        super_admin = db.query(models.Role).filter(models.Role.name == "super_admin").first()
+        if super_admin:
+            db.query(models.AdminUser).filter(models.AdminUser.role_id.is_(None)).update(
+                {"role_id": super_admin.id}, synchronize_session=False
+            )
+            db.commit()
+    finally:
+        db.close()
 
 
-def _verify_pw(password: str, hashed: str) -> bool:
-    return bcrypt.checkpw(password.encode(), hashed.encode())
-
+_seed_builtin_roles()
 
 limiter = Limiter(key_func=get_remote_address)
 _docs_enabled = os.getenv("ENABLE_DOCS", "false").lower() == "true"
@@ -57,7 +76,10 @@ app.add_middleware(
 )
 
 API_KEY = os.getenv("API_KEY", "")
-api_key_header = APIKeyHeader(name="X-API-Key", auto_error=True)
+
+app.include_router(users_router.router)
+app.include_router(roles_router.router)
+app.include_router(audit_router.router)
 
 
 class SetupRequest(BaseModel):
@@ -110,24 +132,6 @@ class BlacklistHitsResponse(BaseModel):
     checked_at: Optional[dt.datetime] = None
 
 
-def get_db():
-    db = database.SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-
-def verify_api_key(key: str = Security(api_key_header), db: Session = Depends(get_db)):
-    admin = db.query(models.AdminUser).filter(models.AdminUser.api_key == key).first()
-    if admin:
-        return key
-    # Fallback to env var for backward compatibility / pre-setup
-    if API_KEY and key == API_KEY:
-        return key
-    raise HTTPException(status_code=401, detail="Invalid API key")
-
-
 def infer_target_type(value: str) -> str:
     if "/" in value:
         try:
@@ -178,8 +182,14 @@ def setup(request: Request, body: SetupRequest, db: Session = Depends(get_db)):
     if len(body.password) < 8:
         raise HTTPException(status_code=422, detail="Password must be at least 8 characters")
     api_key = body.api_key.strip() or secrets.token_urlsafe(32)
-    hashed = _hash_pw(body.password)
-    admin = models.AdminUser(email=email, hashed_password=hashed, api_key=api_key, name=body.name.strip() or None)
+    hashed = hash_password(body.password)
+    super_admin_role = db.query(models.Role).filter(models.Role.name == "super_admin").first()
+    admin = models.AdminUser(
+        email=email, hashed_password=hashed, api_key=api_key,
+        name=body.name.strip() or None,
+        role_id=super_admin_role.id if super_admin_role else None,
+        is_active=True,
+    )
     db.add(admin)
     db.commit()
     logger.info("admin_created", extra={"email": email})
@@ -190,15 +200,25 @@ def setup(request: Request, body: SetupRequest, db: Session = Depends(get_db)):
 @limiter.limit("10/minute")
 def login(request: Request, body: LoginRequest, db: Session = Depends(get_db)):
     admin = db.query(models.AdminUser).filter(
-        models.AdminUser.email == body.email.strip().lower()
+        models.AdminUser.email == body.email.strip().lower(),
+        models.AdminUser.is_active == True,
     ).first()
-    if not admin or not _verify_pw(body.password, admin.hashed_password):
+    if not admin or not verify_password(body.password, admin.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid email or password")
+    admin.last_login = dt.datetime.now(dt.timezone.utc)
+    db.commit()
+    perms = _user_permissions(admin)
     logger.info("admin_login", extra={"email": admin.email})
-    return {"api_key": admin.api_key, "email": admin.email, "name": admin.name or ""}
+    return {
+        "api_key": admin.api_key,
+        "email": admin.email,
+        "name": admin.name or "",
+        "role": admin.role.name if admin.role else None,
+        "permissions": sorted(perms),
+    }
 
 
-@app.get("/dnsbl-providers", dependencies=[Depends(verify_api_key)])
+@app.get("/dnsbl-providers", dependencies=[Depends(require("settings:read"))])
 def list_dnsbl_providers():
     return {"providers": checker.COMMON_DNSBLS, "total": len(checker.COMMON_DNSBLS)}
 
@@ -208,7 +228,7 @@ import redis as _redis_lib
 _rclient = _redis_lib.Redis.from_url(_REDIS_URL, decode_responses=True)
 
 
-@app.post("/targets/subnet-expand", dependencies=[Depends(verify_api_key)])
+@app.post("/targets/subnet-expand", dependencies=[Depends(require("targets:bulk"))])
 @limiter.limit("5/minute")
 def subnet_expand(request: Request, body: SubnetScanRequest, db: Session = Depends(get_db)):
     """Expand a CIDR subnet into individual IP targets and bulk-add to monitoring."""
@@ -238,7 +258,7 @@ def subnet_expand(request: Request, body: SubnetScanRequest, db: Session = Depen
     return {"cidr": str(net), "total": len(ips), "added": len(new_ips), "skipped": len(existing)}
 
 
-@app.post("/scan/subnet", dependencies=[Depends(verify_api_key)])
+@app.post("/scan/subnet", dependencies=[Depends(require("scan:run"))])
 @limiter.limit("5/minute")
 def scan_subnet_start(request: Request, body: SubnetScanRequest):
     """Start async subnet scan. Returns scan_id to poll for progress via GET /scan/subnet/{scan_id}."""
@@ -283,7 +303,7 @@ def scan_subnet_start(request: Request, body: SubnetScanRequest):
     return {"scan_id": scan_id, "cidr": str(net), "total": total}
 
 
-@app.get("/scan/subnet/{scan_id}", dependencies=[Depends(verify_api_key)])
+@app.get("/scan/subnet/{scan_id}", dependencies=[Depends(require("scan:run"))])
 def scan_subnet_progress(request: Request, scan_id: str):
     """Poll for subnet scan progress."""
     info_raw = _rclient.get(f"scan:{scan_id}:info")
@@ -308,7 +328,7 @@ def scan_subnet_progress(request: Request, scan_id: str):
     }
 
 
-@app.post("/targets/", dependencies=[Depends(verify_api_key)], response_model=TargetResponse)
+@app.post("/targets/", dependencies=[Depends(require("targets:write"))], response_model=TargetResponse)
 @limiter.limit("5/minute")
 def add_target(request: Request, target: TargetCreate, db: Session = Depends(get_db)):
     address = target.value.strip().lower()
@@ -334,13 +354,13 @@ def add_target(request: Request, target: TargetCreate, db: Session = Depends(get
     return new_target
 
 
-@app.get("/targets/", dependencies=[Depends(verify_api_key)], response_model=list[TargetResponse])
+@app.get("/targets/", dependencies=[Depends(require("targets:read"))], response_model=list[TargetResponse])
 @limiter.limit("60/minute")
 def list_targets(request: Request, db: Session = Depends(get_db), skip: int = 0, limit: int = 100):
     return db.query(models.Target).offset(skip).limit(min(limit, 1000)).all()
 
 
-@app.get("/targets/{target_id}", dependencies=[Depends(verify_api_key)], response_model=TargetResponse)
+@app.get("/targets/{target_id}", dependencies=[Depends(require("targets:write"))], response_model=TargetResponse)
 @limiter.limit("60/minute")
 def get_target(request: Request, target_id: int, db: Session = Depends(get_db)):
     target = db.query(models.Target).filter(models.Target.id == target_id).first()
@@ -349,14 +369,14 @@ def get_target(request: Request, target_id: int, db: Session = Depends(get_db)):
     return target
 
 
-@app.post("/targets/recheck-all", dependencies=[Depends(verify_api_key)])
+@app.post("/targets/recheck-all", dependencies=[Depends(require("targets:recheck"))])
 @limiter.limit("5/minute")
 def recheck_all(request: Request):
     tasks.monitor_all_targets_task.delay()
     return {"message": "Recheck queued for all targets"}
 
 
-@app.delete("/targets/{target_id}", dependencies=[Depends(verify_api_key)])
+@app.delete("/targets/{target_id}", dependencies=[Depends(require("targets:delete"))])
 @limiter.limit("30/minute")
 def delete_target(request: Request, target_id: int, db: Session = Depends(get_db)):
     target = db.query(models.Target).filter(models.Target.id == target_id).first()
@@ -367,7 +387,7 @@ def delete_target(request: Request, target_id: int, db: Session = Depends(get_db
     return {"message": "Target deleted"}
 
 
-@app.get("/targets/{target_id}/history", dependencies=[Depends(verify_api_key)], response_model=list[CheckHistoryResponse])
+@app.get("/targets/{target_id}/history", dependencies=[Depends(require("targets:read"))], response_model=list[CheckHistoryResponse])
 @limiter.limit("60/minute")
 def get_target_history(request: Request, target_id: int, db: Session = Depends(get_db)):
     target = db.query(models.Target).filter(models.Target.id == target_id).first()
@@ -381,7 +401,7 @@ def get_target_history(request: Request, target_id: int, db: Session = Depends(g
     )
 
 
-@app.get("/targets/{target_id}/blacklist-hits", dependencies=[Depends(verify_api_key)], response_model=BlacklistHitsResponse)
+@app.get("/targets/{target_id}/blacklist-hits", dependencies=[Depends(require("targets:read"))], response_model=BlacklistHitsResponse)
 @limiter.limit("60/minute")
 def get_blacklist_hits(request: Request, target_id: int, db: Session = Depends(get_db)):
     """Returns which DNSBL providers the target is currently listed on."""
@@ -432,8 +452,12 @@ async def problems_websocket(websocket: WebSocket):
     api_key_param = websocket.query_params.get("key", "")
     db = database.SessionLocal()
     try:
-        admin = db.query(models.AdminUser).filter(models.AdminUser.api_key == api_key_param).first()
-        valid = bool(admin) or (API_KEY and api_key_param == API_KEY)
+        user = db.query(models.AdminUser).filter(
+            models.AdminUser.api_key == api_key_param,
+            models.AdminUser.is_active == True,
+        ).first()
+        from .auth import _user_permissions as _up
+        valid = user is not None and "targets:read" in _up(user)
     finally:
         db.close()
     if not valid:

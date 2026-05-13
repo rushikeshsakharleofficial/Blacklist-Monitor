@@ -1,14 +1,15 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutGrid, Shield, Bell, BarChart2, Settings, LogOut, AlertCircle, Network } from 'lucide-react';
+import { LayoutGrid, Shield, Bell, BarChart2, Settings, LogOut, AlertCircle, Network, Users, ShieldCheck } from 'lucide-react';
 
 interface SidebarProps {
   email: string;
   name: string;
   onLogout: () => void;
+  permissions?: string[];
 }
 
-const menuItems = [
+const baseMenuItems = [
   { icon: LayoutGrid, label: 'Dashboard', to: '/dashboard' },
   { icon: Shield,      label: 'Monitored Assets', to: '/monitored-assets' },
   { icon: AlertCircle, label: 'Problems/Listings', to: '/problems' },
@@ -18,52 +19,85 @@ const menuItems = [
   { icon: Settings,    label: 'Settings', to: '/settings' },
 ];
 
-const Sidebar: React.FC<SidebarProps> = ({ email, name, onLogout }) => (
-  <div className="w-[220px] h-full bg-nav-bg flex flex-col border-r border-[#2d4057] shrink-0">
-    <div className="px-4 py-3 border-b border-[#2d4057]">
-      <div className="flex items-center gap-2">
-        <Shield size={16} className="text-[#336699]" />
-        <span className="text-white font-bold text-xs tracking-widest uppercase">BlacklistTrailer</span>
-      </div>
-      <div className="text-[#6a8099] text-[10px] mt-0.5">Blacklist Monitor v1.0</div>
-    </div>
+const adminMenuItems = [
+  { icon: Users,       label: 'Users', to: '/users', perm: 'users:read' },
+  { icon: ShieldCheck, label: 'Roles', to: '/roles', perm: 'users:read' },
+];
 
-    <nav className="flex-1 py-2">
-      {menuItems.map(({ icon: Icon, label, to }) => (
-        <NavLink
-          key={to}
-          to={to}
-          className={({ isActive }) =>
-            `flex items-center gap-2.5 px-4 py-2 text-xs border-l-2 transition-colors ${
-              isActive
-                ? 'bg-nav-active border-primary text-white font-semibold'
-                : 'border-transparent text-nav-text hover:bg-[#243649] hover:text-white'
-            }`
-          }
-        >
-          <Icon size={14} />
-          <span>{label}</span>
-        </NavLink>
-      ))}
-    </nav>
+const Sidebar: React.FC<SidebarProps> = ({ email, name, onLogout, permissions = [] }) => {
+  const adminItems = adminMenuItems.filter(item => permissions.includes(item.perm));
 
-    <div className="border-t border-[#2d4057] p-3">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 min-w-0">
-          <div className="w-6 h-6 rounded bg-[#336699] flex items-center justify-center text-white text-xs font-bold shrink-0">
-            {name ? name[0].toUpperCase() : email ? email[0].toUpperCase() : '?'}
-          </div>
-          <div className="min-w-0">
-            <div className="text-nav-text text-[11px] font-medium truncate">{name || email.split('@')[0] || 'User'}</div>
-            <div className="text-[#4a6a84] text-[10px]">API Access</div>
-          </div>
+  return (
+    <div className="w-[220px] h-full bg-nav-bg flex flex-col border-r border-[#2d4057] shrink-0">
+      <div className="px-4 py-3 border-b border-[#2d4057]">
+        <div className="flex items-center gap-2">
+          <Shield size={16} className="text-[#336699]" />
+          <span className="text-white font-bold text-xs tracking-widest uppercase">BlacklistTrailer</span>
         </div>
-        <button onClick={onLogout} title="Logout" className="text-[#4a6a84] hover:text-red-400 p-1 rounded">
-          <LogOut size={13} />
-        </button>
+        <div className="text-[#6a8099] text-[10px] mt-0.5">Blacklist Monitor v1.0</div>
+      </div>
+
+      <nav className="flex-1 py-2 overflow-y-auto">
+        {baseMenuItems.map(({ icon: Icon, label, to }) => (
+          <NavLink
+            key={to}
+            to={to}
+            className={({ isActive }) =>
+              `flex items-center gap-2.5 px-4 py-2 text-xs border-l-2 transition-colors ${
+                isActive
+                  ? 'bg-nav-active border-primary text-white font-semibold'
+                  : 'border-transparent text-nav-text hover:bg-[#243649] hover:text-white'
+              }`
+            }
+          >
+            <Icon size={14} />
+            <span>{label}</span>
+          </NavLink>
+        ))}
+
+        {adminItems.length > 0 && (
+          <>
+            <div className="px-4 pt-3 pb-1">
+              <span className="text-[9px] font-bold uppercase tracking-widest text-[#4a6a84]">Administration</span>
+            </div>
+            {adminItems.map(({ icon: Icon, label, to }) => (
+              <NavLink
+                key={to}
+                to={to}
+                className={({ isActive }) =>
+                  `flex items-center gap-2.5 px-4 py-2 text-xs border-l-2 transition-colors ${
+                    isActive
+                      ? 'bg-nav-active border-primary text-white font-semibold'
+                      : 'border-transparent text-nav-text hover:bg-[#243649] hover:text-white'
+                  }`
+                }
+              >
+                <Icon size={14} />
+                <span>{label}</span>
+              </NavLink>
+            ))}
+          </>
+        )}
+      </nav>
+
+      <div className="border-t border-[#2d4057] p-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-6 h-6 rounded bg-[#336699] flex items-center justify-center text-white text-xs font-bold shrink-0">
+              {name ? name[0].toUpperCase() : email ? email[0].toUpperCase() : '?'}
+            </div>
+            <div className="min-w-0">
+              <div className="text-nav-text text-[11px] font-medium truncate">{name || email.split('@')[0] || 'User'}</div>
+              <div className="text-[#4a6a84] text-[10px]">API Access</div>
+            </div>
+          </div>
+          <button onClick={onLogout} title="Logout" className="text-[#4a6a84] hover:text-red-400 p-1 rounded">
+            <LogOut size={13} />
+          </button>
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 export default Sidebar;
