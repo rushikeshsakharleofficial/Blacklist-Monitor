@@ -1,5 +1,5 @@
-import React from 'react';
-import { Trash2, ExternalLink } from 'lucide-react';
+import React, { useState } from 'react';
+import { Trash2, ExternalLink, X, Check } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export interface Target {
@@ -35,6 +35,8 @@ function StatusBadge({ target }: { target: Target }) {
 }
 
 const TargetTable: React.FC<Props> = ({ targets, onDelete }) => {
+  const [confirmId, setConfirmId] = useState<number | null>(null);
+
   if (targets.length === 0) {
     return (
       <div className="border border-panel-border bg-white px-4 py-6 text-center text-muted text-sm">
@@ -51,7 +53,7 @@ const TargetTable: React.FC<Props> = ({ targets, onDelete }) => {
           <th className="px-3 py-2 text-left uppercase font-bold tracking-wide border border-[#3d5166]">IP / Domain</th>
           <th className="px-3 py-2 text-left uppercase font-bold tracking-wide border border-[#3d5166] w-16">Type</th>
           <th className="px-3 py-2 text-left uppercase font-bold tracking-wide border border-[#3d5166] w-28">Last Check</th>
-          <th className="px-3 py-2 text-left uppercase font-bold tracking-wide border border-[#3d5166] w-28">Actions</th>
+          <th className="px-3 py-2 text-left uppercase font-bold tracking-wide border border-[#3d5166] w-40">Actions</th>
         </tr>
       </thead>
       <tbody>
@@ -62,19 +64,39 @@ const TargetTable: React.FC<Props> = ({ targets, onDelete }) => {
             <td className="px-3 py-1.5 border border-panel-border uppercase text-[10px] text-muted font-bold">{t.target_type}</td>
             <td className="px-3 py-1.5 border border-panel-border text-muted">{relativeTime(t.last_checked)}</td>
             <td className="px-3 py-1.5 border border-panel-border">
-              <div className="flex items-center gap-2">
-                {t.is_blacklisted && (
-                  <Link to={`/problems/${t.id}`} className="text-primary hover:underline flex items-center gap-1 text-[11px]">
-                    <ExternalLink size={11} /> Detail
-                  </Link>
-                )}
-                <button
-                  onClick={() => onDelete(t.id)}
-                  className="text-danger hover:text-red-800 flex items-center gap-1 text-[11px]"
-                >
-                  <Trash2 size={11} /> Remove
-                </button>
-              </div>
+              {confirmId === t.id ? (
+                <div className="flex items-center gap-1">
+                  <span className="text-[10px] text-danger font-bold mr-1">Remove?</span>
+                  <button
+                    onClick={() => { onDelete(t.id); setConfirmId(null); }}
+                    className="flex items-center gap-0.5 px-2 py-0.5 text-[10px] font-bold text-white"
+                    style={{ background: '#e74c3c', borderRadius: 2 }}
+                  >
+                    <Check size={10} /> Yes
+                  </button>
+                  <button
+                    onClick={() => setConfirmId(null)}
+                    className="flex items-center gap-0.5 px-2 py-0.5 text-[10px] font-bold border border-panel-border bg-white hover:bg-row-alt"
+                    style={{ borderRadius: 2 }}
+                  >
+                    <X size={10} /> No
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  {t.is_blacklisted && (
+                    <Link to={`/problems/${t.id}`} className="text-primary hover:underline flex items-center gap-1 text-[11px]">
+                      <ExternalLink size={11} /> Detail
+                    </Link>
+                  )}
+                  <button
+                    onClick={() => setConfirmId(t.id)}
+                    className="text-danger hover:text-red-800 flex items-center gap-1 text-[11px]"
+                  >
+                    <Trash2 size={11} /> Remove
+                  </button>
+                </div>
+              )}
             </td>
           </tr>
         ))}

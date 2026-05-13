@@ -53,20 +53,23 @@ function Dashboard({ apiBaseUrl }: { apiBaseUrl: string }) {
       await axios.post(`${apiBaseUrl}/targets/`, { value });
       await fetchTargets();
     } catch (err: any) {
-      console.error('Error adding target:', err);
       alert(err.response?.data?.detail || 'Failed to add target');
     } finally {
       setIsAdding(false);
     }
   };
 
+  const handleBulkExpand = async (cidr: string) => {
+    const res = await axios.post(`${apiBaseUrl}/targets/subnet-expand`, { cidr });
+    await fetchTargets();
+    return res.data as { added: number; skipped: number; total: number };
+  };
+
   const handleDeleteTarget = async (id: number) => {
-    if (!window.confirm('Are you sure you want to remove this asset from monitoring?')) return;
     try {
       await axios.delete(`${apiBaseUrl}/targets/${id}`);
       setTargets(targets.filter(t => t.id !== id));
-    } catch (err) {
-      console.error('Error deleting target:', err);
+    } catch {
       alert('Failed to delete target');
     }
   };
@@ -109,7 +112,7 @@ function Dashboard({ apiBaseUrl }: { apiBaseUrl: string }) {
           </div>
           <div className="bg-white p-3">
             <div className="mb-3">
-              <AddTargetForm onAdd={handleAddTarget} isLoading={isAdding} />
+              <AddTargetForm onAdd={handleAddTarget} onBulkExpand={handleBulkExpand} isLoading={isAdding} />
             </div>
             <TargetTable targets={targets} onDelete={handleDeleteTarget} />
           </div>

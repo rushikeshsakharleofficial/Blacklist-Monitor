@@ -208,6 +208,36 @@ import redis as _redis_lib
 _rclient = _redis_lib.Redis.from_url(_REDIS_URL, decode_responses=True)
 
 
+@app.post("/targets/subnet-expand", dependencies=[Depends(verify_api_key)])
+@limiter.limit("5/minute")
+def subnet_expand(request: Request, body: SubnetScanRequest, db: Session = Depends(get_db)):
+    """Expand a CIDR subnet into individual IP targets and bulk-add to monitoring."""
+    try:
+        net = ipaddress.ip_network(body.cidr.strip(), strict=False)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Invalid CIDR notation")
+    if net.version != 4:
+        raise HTTPException(status_code=422, detail="Only IPv4 subnets supported")
+    if net.prefixlen < 16:
+        raise HTTPException(status_code=422, detail=f"Too large — maximum /16 (65,534 IPs). Got /{net.prefixlen}")
+    ips = [str(ip) for ip in net.hosts()] or [str(net.network_address)]
+    existing = {
+        r[0] for r in db.query(models.Target.address).filter(models.Target.address.in_(ips)).all()
+    }
+    new_ips = [ip for ip in ips if ip not in existing]
+    if new_ips:
+        db.bulk_save_objects([
+            models.Target(address=ip, target_type="ip", is_blacklisted=False)
+            for ip in new_ips
+        ], return_defaults=True)
+        db.commit()
+        # Queue DNSBL checks for newly added targets
+        added = db.query(models.Target).filter(models.Target.address.in_(new_ips)).all()
+        for t in added:
+            tasks.monitor_target_task.delay(t.id)
+    return {"cidr": str(net), "total": len(ips), "added": len(new_ips), "skipped": len(existing)}
+
+
 @app.post("/scan/subnet", dependencies=[Depends(verify_api_key)])
 @limiter.limit("5/minute")
 def scan_subnet_start(request: Request, body: SubnetScanRequest):

@@ -11,7 +11,7 @@ interface SidebarProps {
 const menuItems = [
   { icon: LayoutGrid, label: 'Dashboard', to: '/dashboard' },
   { icon: Shield,      label: 'Monitored Assets', to: '/monitored-assets' },
-  { icon: AlertCircle, label: 'Listed IPs', to: '/problems' },
+  { icon: AlertCircle, label: 'Problems/Listings', to: '/problems' },
   { icon: Network,     label: 'Subnet Scan', to: '/subnet-scan' },
   { icon: Bell,        label: 'Alerts', to: '/alerts' },
   { icon: BarChart2,   label: 'Reports', to: '/reports' },

@@ -46,7 +46,6 @@ const MonitoredAssetsPage: React.FC = () => {
   };
 
   const handleDelete = async (id: number) => {
-    if (!window.confirm('Are you sure you want to remove this asset from monitoring?')) return;
     try {
       await axios.delete(`${API_BASE_URL}/targets/${id}`);
       await fetchTargets();
