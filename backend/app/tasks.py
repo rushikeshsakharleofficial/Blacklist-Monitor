@@ -2,7 +2,7 @@ import json
 import logging
 import datetime
 from .worker import celery_app
-from .checker import check_target, check_subnet_cidr, COMMON_DNSBLS
+from .checker import check_target, check_subnet_cidr, COMMON_DNSBLS, lookup_org_for_target
 from .database import SessionLocal
 from .models import Target, CheckHistory
 from .alerts import send_slack_alert, send_email_alert
@@ -54,6 +54,8 @@ def monitor_target_task(self, target_id: int):
 
         target.is_blacklisted = is_listed
         target.last_checked = now
+        if not target.org:
+            target.org = lookup_org_for_target(target.address, target.target_type)
 
         if is_listed != previous_state:
             send_slack_alert(target.address, is_listed)

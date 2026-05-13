@@ -71,6 +71,7 @@ class Target(Base):
     is_blacklisted = Column(Boolean, default=False, index=True)
     last_checked = Column(DateTime, default=None, index=True)
     created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc), index=True)
+    org = Column(String, nullable=True)
     history = relationship("CheckHistory", back_populates="target")
 
     __table_args__ = (

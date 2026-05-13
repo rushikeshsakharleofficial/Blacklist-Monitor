@@ -145,6 +145,46 @@ def check_subnet_cidr(cidr: str) -> list[dict]:
     return results
 
 
+def lookup_org(ip: str) -> str | None:
+    """Return ASN org name for an IPv4 address via Team Cymru DNS (free, no API key)."""
+    try:
+        addr = ipaddress.ip_address(ip)
+        if addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved:
+            return None
+        rev = ".".join(reversed(ip.split(".")))
+        answers = _get_resolver().resolve(f"{rev}.origin.asn.cymru.com", "TXT")
+        txt = str(answers[0]).strip('"')
+        asn = txt.split("|")[0].strip()
+        if not asn or asn == "NA":
+            return None
+        answers2 = _get_resolver().resolve(f"AS{asn}.asn.cymru.com", "TXT")
+        txt2 = str(answers2[0]).strip('"')
+        parts = [p.strip() for p in txt2.split("|")]
+        if len(parts) >= 5:
+            return parts[4].strip()[:100] or None
+    except Exception:
+        return None
+
+
+def lookup_org_for_target(address: str, target_type: str) -> str | None:
+    """Resolve org for any target type (ip, domain, cidr/subnet)."""
+    if target_type == "ip":
+        return lookup_org(address)
+    if target_type == "domain":
+        try:
+            answers = _get_resolver().resolve(address, "A")
+            return lookup_org(answers[0].address)
+        except Exception:
+            return None
+    if target_type in ("cidr", "subnet"):
+        try:
+            net = ipaddress.ip_network(address, strict=False)
+            return lookup_org(str(net.network_address))
+        except Exception:
+            return None
+    return None
+
+
 def check_target(address: str, target_type: str) -> list[str]:
     """Returns list of DNSBL zones where address is listed (empty = clean)."""
     if target_type == "ip":

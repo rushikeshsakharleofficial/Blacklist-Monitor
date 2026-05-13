@@ -109,6 +109,7 @@ class TargetResponse(BaseModel):
     is_blacklisted: bool
     last_checked: Optional[dt.datetime] = None
     created_at: Optional[dt.datetime] = None
+    org: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
@@ -246,8 +247,10 @@ def subnet_expand(request: Request, body: SubnetScanRequest, db: Session = Depen
     }
     new_ips = [ip for ip in ips if ip not in existing]
     if new_ips:
+        from .checker import lookup_org
+        subnet_org = lookup_org(str(net.network_address))
         db.bulk_save_objects([
-            models.Target(address=ip, target_type="ip", is_blacklisted=False)
+            models.Target(address=ip, target_type="ip", is_blacklisted=False, org=subnet_org)
             for ip in new_ips
         ], return_defaults=True)
         db.commit()
@@ -346,7 +349,9 @@ def add_target(request: Request, target: TargetCreate, db: Session = Depends(get
             raise
         except Exception:
             raise HTTPException(status_code=422, detail="Invalid subnet CIDR")
-    new_target = models.Target(address=address, target_type=target_type)
+    from .checker import lookup_org_for_target
+    org = lookup_org_for_target(address, target_type)
+    new_target = models.Target(address=address, target_type=target_type, org=org)
     db.add(new_target)
     db.commit()
     db.refresh(new_target)

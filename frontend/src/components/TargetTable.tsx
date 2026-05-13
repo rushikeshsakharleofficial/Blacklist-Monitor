@@ -9,6 +9,7 @@ export interface Target {
   is_blacklisted: boolean;
   last_checked: string | null;
   created_at: string | null;
+  org: string | null;
 }
 
 interface Props {
@@ -51,6 +52,7 @@ const TargetTable: React.FC<Props> = ({ targets, onDelete }) => {
         <tr style={{ background: '#2c3e50', color: 'white' }}>
           <th className="px-3 py-2 text-left uppercase font-bold tracking-wide border border-[#3d5166] w-24">Status</th>
           <th className="px-3 py-2 text-left uppercase font-bold tracking-wide border border-[#3d5166]">IP / Domain</th>
+          <th className="px-3 py-2 text-left uppercase font-bold tracking-wide border border-[#3d5166]">Provider / Org</th>
           <th className="px-3 py-2 text-left uppercase font-bold tracking-wide border border-[#3d5166] w-16">Type</th>
           <th className="px-3 py-2 text-left uppercase font-bold tracking-wide border border-[#3d5166] w-28">Last Check</th>
           <th className="px-3 py-2 text-left uppercase font-bold tracking-wide border border-[#3d5166] w-40">Actions</th>
@@ -61,6 +63,7 @@ const TargetTable: React.FC<Props> = ({ targets, onDelete }) => {
           <tr key={t.id} className={i % 2 === 0 ? 'bg-white' : 'bg-row-alt'}>
             <td className="px-3 py-1.5 border border-panel-border"><StatusBadge target={t} /></td>
             <td className="px-3 py-1.5 border border-panel-border font-mono text-foreground">{t.address}</td>
+            <td className="px-3 py-1.5 border border-panel-border text-[10px] text-muted truncate max-w-[180px]" title={t.org || ''}>{t.org || '—'}</td>
             <td className="px-3 py-1.5 border border-panel-border uppercase text-[10px] text-muted font-bold">{t.target_type}</td>
             <td className="px-3 py-1.5 border border-panel-border text-muted">{relativeTime(t.last_checked)}</td>
             <td className="px-3 py-1.5 border border-panel-border">
@@ -103,7 +106,7 @@ const TargetTable: React.FC<Props> = ({ targets, onDelete }) => {
       </tbody>
       <tfoot>
         <tr className="bg-[#f0f2f5]">
-          <td colSpan={5} className="px-3 py-1.5 border border-panel-border text-muted text-[11px]">
+          <td colSpan={6} className="px-3 py-1.5 border border-panel-border text-muted text-[11px]">
             Showing {targets.length} asset{targets.length !== 1 ? 's' : ''} — {targets.filter(t => t.is_blacklisted).length} listed, {targets.filter(t => !t.is_blacklisted && t.last_checked).length} clean
           </td>
         </tr>
