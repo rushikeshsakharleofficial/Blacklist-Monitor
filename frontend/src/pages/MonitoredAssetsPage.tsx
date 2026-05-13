@@ -47,6 +47,12 @@ const MonitoredAssetsPage: React.FC = () => {
     }
   };
 
+  const handleBulkExpand = async (cidr: string) => {
+    const res = await axios.post(`${API_BASE_URL}/targets/subnet-expand`, { cidr });
+    await fetchTargets();
+    return res.data as { added: number; skipped: number; total: number };
+  };
+
   const handleDelete = async (id: number) => {
     try {
       await axios.delete(`${API_BASE_URL}/targets/${id}`);
@@ -116,7 +122,7 @@ const MonitoredAssetsPage: React.FC = () => {
             <span className="text-white text-[11px] font-bold uppercase tracking-wider">Add New Asset</span>
           </div>
           <div className="bg-white p-3">
-            <AddTargetForm onAdd={handleAdd} isLoading={isAdding} />
+            <AddTargetForm onAdd={handleAdd} onBulkExpand={handleBulkExpand} isLoading={isAdding} />
           </div>
         </div>
       )}
