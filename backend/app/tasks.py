@@ -5,7 +5,7 @@ from .worker import celery_app
 from .checker import check_target, check_subnet_cidr, COMMON_DNSBLS, lookup_org_for_target
 from .database import SessionLocal
 from .models import Target, CheckHistory
-from .alerts import send_slack_alert, send_email_alert
+from .alerts import send_alerts
 
 logger = logging.getLogger(__name__)
 
@@ -57,9 +57,8 @@ def monitor_target_task(self, target_id: int):
         if not target.org:
             target.org = lookup_org_for_target(target.address, target.target_type)
 
-        if is_listed != previous_state:
-            send_slack_alert(target.address, is_listed)
-            send_email_alert(target.address, is_listed)
+        if is_listed != previous_state or target.last_checked is None:
+            send_alerts(target.address, is_listed, previous_state if target.last_checked else None, db=db)
 
         db.add(CheckHistory(target_id=target.id, status=is_listed, details=details))
         db.commit()

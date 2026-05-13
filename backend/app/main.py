@@ -20,7 +20,7 @@ from . import models, database, tasks, checker
 from .logging_config import setup_logging
 from .auth import get_db, get_current_user, require, hash_password, verify_password, _user_permissions
 from .permissions import BUILTIN_ROLES
-from .routers import users as users_router, roles as roles_router, audit as audit_router
+from .routers import users as users_router, roles as roles_router, audit as audit_router, alerts as alerts_router
 import json
 
 setup_logging()
@@ -80,6 +80,7 @@ API_KEY = os.getenv("API_KEY", "")
 app.include_router(users_router.router)
 app.include_router(roles_router.router)
 app.include_router(audit_router.router)
+app.include_router(alerts_router.router)
 
 
 class SetupRequest(BaseModel):

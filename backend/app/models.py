@@ -80,6 +80,25 @@ class Target(Base):
     )
 
 
+class AppSetting(Base):
+    __tablename__ = "app_settings"
+
+    key = Column(String, primary_key=True)
+    value = Column(String, nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class AlertLog(Base):
+    __tablename__ = "alert_log"
+
+    id = Column(Integer, primary_key=True)
+    target_address = Column(String, nullable=False, index=True)
+    from_status = Column(String, nullable=False)
+    to_status = Column(String, nullable=False)
+    channels = Column(String, nullable=True)  # JSON list e.g. ["slack","email"]
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+
 class CheckHistory(Base):
     __tablename__ = "check_history"
 
