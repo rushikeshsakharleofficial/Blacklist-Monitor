@@ -297,7 +297,13 @@ async def problems_websocket(websocket: WebSocket):
     Auth: pass ?key=<api_key> as query param (WebSocket headers not reliably supported).
     """
     api_key_param = websocket.query_params.get("key", "")
-    if not API_KEY or api_key_param != API_KEY:
+    db = database.SessionLocal()
+    try:
+        admin = db.query(models.AdminUser).filter(models.AdminUser.api_key == api_key_param).first()
+        valid = bool(admin) or (API_KEY and api_key_param == API_KEY)
+    finally:
+        db.close()
+    if not valid:
         await websocket.close(code=1008)
         return
 
