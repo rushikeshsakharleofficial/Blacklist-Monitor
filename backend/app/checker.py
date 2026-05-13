@@ -145,12 +145,9 @@ def check_subnet_cidr(cidr: str) -> list[dict]:
     return results
 
 
-def lookup_org(ip: str) -> str | None:
-    """Return ASN org name for an IPv4 address via Team Cymru DNS (free, no API key)."""
+def _cymru_asn_name(ip: str) -> str | None:
+    """ASN org name via Team Cymru DNS — fast fallback."""
     try:
-        addr = ipaddress.ip_address(ip)
-        if addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved:
-            return None
         rev = ".".join(reversed(ip.split(".")))
         answers = _get_resolver().resolve(f"{rev}.origin.asn.cymru.com", "TXT")
         txt = str(answers[0]).strip('"')
@@ -161,9 +158,51 @@ def lookup_org(ip: str) -> str | None:
         txt2 = str(answers2[0]).strip('"')
         parts = [p.strip() for p in txt2.split("|")]
         if len(parts) >= 5:
-            return parts[4].strip()[:100] or None
+            raw = parts[4].strip()
+            # "GOOGLE - Google LLC, US" → "Google LLC"
+            # "TATACOMM-AS TATA Communications..., IN" → strip AS prefix
+            if " - " in raw:
+                raw = raw.split(" - ", 1)[1]
+            # strip trailing ", CC" country code
+            if raw.count(",") >= 1:
+                raw = raw.rsplit(",", 1)[0].strip()
+            return raw[:100] or None
     except Exception:
         return None
+
+
+def lookup_org(ip: str) -> str | None:
+    """Return registered owner/org for an IPv4 address.
+    Tries RDAP first (actual registrant name), falls back to cleaned Cymru ASN name."""
+    try:
+        addr = ipaddress.ip_address(ip)
+        if addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved:
+            return None
+    except Exception:
+        return None
+    try:
+        from ipwhois import IPWhois
+        result = IPWhois(ip).lookup_rdap(depth=0, retry_count=1)
+        # 1. Try first description remark on the network block (actual registrant name)
+        remarks = result.get("network", {}).get("remarks") or []
+        for rem in remarks:
+            if rem.get("title") == "description" and rem.get("description"):
+                first_line = rem["description"].split("\n")[0].strip()
+                if first_line and len(first_line) > 2:
+                    return first_line[:100]
+        # 2. Clean up asn_description: "GOOGLE - Google LLC, US" → "Google LLC"
+        asn_desc = result.get("asn_description", "") or ""
+        if asn_desc:
+            if " - " in asn_desc:
+                asn_desc = asn_desc.split(" - ", 1)[1]
+            if "," in asn_desc:
+                asn_desc = asn_desc.rsplit(",", 1)[0].strip()
+            if asn_desc and len(asn_desc) > 2:
+                return asn_desc[:100]
+    except Exception:
+        pass
+    # 3. Fallback: Cymru ASN name (DNS-based, already cleaned)
+    return _cymru_asn_name(ip)
 
 
 def lookup_org_for_target(address: str, target_type: str) -> str | None:
