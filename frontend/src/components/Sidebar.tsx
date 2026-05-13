@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutGrid, Shield, Bell, BarChart2, Settings, LogOut, AlertCircle } from 'lucide-react';
+import { LayoutGrid, Shield, Bell, BarChart2, Settings, LogOut, AlertCircle, Network } from 'lucide-react';
 
 interface SidebarProps {
   email: string;
@@ -12,6 +12,7 @@ const menuItems = [
   { icon: LayoutGrid, label: 'Dashboard', to: '/dashboard' },
   { icon: Shield,      label: 'Monitored Assets', to: '/monitored-assets' },
   { icon: AlertCircle, label: 'Listed IPs', to: '/problems' },
+  { icon: Network,     label: 'Subnet Scan', to: '/subnet-scan' },
   { icon: Bell,        label: 'Alerts', to: '/alerts' },
   { icon: BarChart2,   label: 'Reports', to: '/reports' },
   { icon: Settings,    label: 'Settings', to: '/settings' },

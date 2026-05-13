@@ -4,6 +4,7 @@ import time
 import logging
 import secrets
 import datetime as dt
+import ipaddress
 from typing import Optional
 import asyncio
 import bcrypt
@@ -67,6 +68,10 @@ class SetupRequest(BaseModel):
 class LoginRequest(BaseModel):
     email: str
     password: str
+
+
+class SubnetScanRequest(BaseModel):
+    cidr: str
 
 
 class TargetCreate(BaseModel):
@@ -188,6 +193,48 @@ def login(request: Request, body: LoginRequest, db: Session = Depends(get_db)):
 @app.get("/dnsbl-providers", dependencies=[Depends(verify_api_key)])
 def list_dnsbl_providers():
     return {"providers": checker.COMMON_DNSBLS, "total": len(checker.COMMON_DNSBLS)}
+
+
+@app.post("/scan/subnet", dependencies=[Depends(verify_api_key)])
+@limiter.limit("5/minute")
+def scan_subnet(request: Request, body: SubnetScanRequest):
+    from concurrent.futures import ThreadPoolExecutor, as_completed as asc
+    try:
+        net = ipaddress.ip_network(body.cidr.strip(), strict=False)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Invalid CIDR notation (e.g. 192.168.1.0/26)")
+    if net.version != 4:
+        raise HTTPException(status_code=422, detail="Only IPv4 subnets supported")
+    if net.prefixlen < 24:
+        raise HTTPException(status_code=422, detail="Subnet too large — maximum /24 (256 IPs)")
+    ips = [str(ip) for ip in net.hosts()] or [str(net.network_address)]
+    results = []
+    with ThreadPoolExecutor(max_workers=min(len(ips), 16)) as executor:
+        futures = {executor.submit(checker.check_dnsbl, ip): ip for ip in ips}
+        try:
+            for future in asc(futures, timeout=90):
+                ip = futures[future]
+                try:
+                    hits = future.result()
+                except Exception:
+                    hits = []
+                results.append({
+                    "ip": ip,
+                    "hits": hits,
+                    "is_blacklisted": bool(hits),
+                    "total_checked": len(checker.COMMON_DNSBLS),
+                })
+        except Exception:
+            pass
+    results.sort(key=lambda x: [int(p) for p in x["ip"].split(".")])
+    listed = sum(1 for r in results if r["is_blacklisted"])
+    return {
+        "cidr": str(net),
+        "total_ips": len(results),
+        "listed": listed,
+        "clean": len(results) - listed,
+        "results": results,
+    }
 
 
 @app.post("/targets/", dependencies=[Depends(verify_api_key)], response_model=TargetResponse)
