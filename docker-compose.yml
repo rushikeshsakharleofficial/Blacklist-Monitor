@@ -12,6 +12,12 @@ services:
       api:
         condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:80/nginx-health 2>/dev/null | grep -q healthy || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
     logging:
       driver: json-file
       options:
@@ -48,6 +54,7 @@ services:
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - WEB_CONCURRENCY=${WEB_CONCURRENCY:-2}
+      - ENABLE_DOCS=${ENABLE_DOCS:-false}
     depends_on:
       db:
         condition: service_healthy
@@ -73,6 +80,12 @@ services:
       - DATABASE_URL=${DATABASE_URL}
       - REDIS_URL=${REDIS_URL}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL:-}
+      - SMTP_SERVER=${SMTP_SERVER:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - ALERT_EMAIL_TO=${ALERT_EMAIL_TO:-}
     depends_on:
       db:
         condition: service_healthy

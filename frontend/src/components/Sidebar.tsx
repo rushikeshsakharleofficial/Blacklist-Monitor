@@ -1,53 +1,67 @@
 import React from 'react';
-import { LayoutDashboard, Shield, Settings, AlertTriangle, BarChart2 } from 'lucide-react';
+import { NavLink } from 'react-router-dom';
+import { LayoutGrid, Shield, Bell, BarChart2, Settings, LogOut, AlertCircle } from 'lucide-react';
 
-const Sidebar = () => {
-  const menuItems = [
-    { icon: LayoutDashboard, label: 'Dashboard', active: true },
-    { icon: Shield, label: 'Monitored Assets', active: false },
-    { icon: AlertTriangle, label: 'Alerts', active: false },
-    { icon: BarChart2, label: 'Reports', active: false },
-    { icon: Settings, label: 'Settings', active: false },
-  ];
+interface SidebarProps {
+  email: string;
+  onLogout: () => void;
+}
 
-  return (
-    <div className="w-64 h-screen bg-muted border-r border-border flex flex-col">
-      <div className="p-8 flex items-center gap-3">
-        <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center text-white shadow-lg shadow-primary/20">
-          <Shield size={24} />
-        </div>
-        <span className="text-xl font-bold tracking-tight text-foreground">Guardly</span>
+const menuItems = [
+  { icon: LayoutGrid, label: 'Dashboard', to: '/dashboard' },
+  { icon: Shield,      label: 'Monitored Assets', to: '/monitored-assets' },
+  { icon: AlertCircle, label: 'Listed IPs', to: '/problems' },
+  { icon: Bell,        label: 'Alerts', to: '/alerts' },
+  { icon: BarChart2,   label: 'Reports', to: '/reports' },
+  { icon: Settings,    label: 'Settings', to: '/settings' },
+];
+
+const Sidebar: React.FC<SidebarProps> = ({ email, onLogout }) => (
+  <div className="w-[220px] min-h-screen bg-nav-bg flex flex-col border-r border-[#2d4057] shrink-0">
+    <div className="px-4 py-3 border-b border-[#2d4057]">
+      <div className="flex items-center gap-2">
+        <Shield size={16} className="text-[#336699]" />
+        <span className="text-white font-bold text-xs tracking-widest uppercase">BlacklistTrailer</span>
       </div>
-      
-      <nav className="flex-1 px-4 py-4 space-y-1">
-        {menuItems.map((item, index) => (
-          <button
-            key={index}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
-              item.active 
-                ? 'bg-white text-primary shadow-soft font-semibold' 
-                : 'text-muted-foreground hover:bg-white/50 hover:text-foreground'
-            }`}
-          >
-            <item.icon size={20} />
-            <span className="text-sm">{item.label}</span>
-          </button>
-        ))}
-      </nav>
-      
-      <div className="p-6 border-t border-border mt-auto">
-        <div className="flex items-center gap-3 px-2">
-          <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center text-primary font-bold shadow-inner">
-            JD
+      <div className="text-[#6a8099] text-[10px] mt-0.5">Blacklist Monitor v1.0</div>
+    </div>
+
+    <nav className="flex-1 py-2">
+      {menuItems.map(({ icon: Icon, label, to }) => (
+        <NavLink
+          key={to}
+          to={to}
+          className={({ isActive }) =>
+            `flex items-center gap-2.5 px-4 py-2 text-xs border-l-2 transition-colors ${
+              isActive
+                ? 'bg-nav-active border-primary text-white font-semibold'
+                : 'border-transparent text-nav-text hover:bg-[#243649] hover:text-white'
+            }`
+          }
+        >
+          <Icon size={14} />
+          <span>{label}</span>
+        </NavLink>
+      ))}
+    </nav>
+
+    <div className="border-t border-[#2d4057] p-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="w-6 h-6 rounded bg-[#336699] flex items-center justify-center text-white text-xs font-bold shrink-0">
+            {email ? email[0].toUpperCase() : '?'}
           </div>
-          <div className="flex flex-col">
-            <span className="text-sm font-semibold text-foreground">John Doe</span>
-            <span className="text-xs text-muted-foreground">Premium Plan</span>
+          <div className="min-w-0">
+            <div className="text-nav-text text-[11px] font-medium truncate">{email.split('@')[0] || 'User'}</div>
+            <div className="text-[#4a6a84] text-[10px]">API Access</div>
           </div>
         </div>
+        <button onClick={onLogout} title="Logout" className="text-[#4a6a84] hover:text-red-400 p-1 rounded">
+          <LogOut size={13} />
+        </button>
       </div>
     </div>
-  );
-};
+  </div>
+);
 
 export default Sidebar;

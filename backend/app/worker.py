@@ -10,6 +10,8 @@ celery_app.conf.update(
     result_serializer='json',
     timezone='UTC',
     enable_utc=True,
+    task_soft_time_limit=120,
+    task_time_limit=180,
     beat_schedule={
         'monitor-all-targets-every-30-minutes': {
             'task': 'app.tasks.monitor_all_targets_task',

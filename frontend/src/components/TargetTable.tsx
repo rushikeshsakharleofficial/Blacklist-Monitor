@@ -1,129 +1,92 @@
 import React from 'react';
-import { ShieldCheck, ShieldAlert, Clock, Trash2, ExternalLink } from 'lucide-react';
+import { Trash2, ExternalLink } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 export interface Target {
   id: number;
   address: string;
+  target_type: string;
   is_blacklisted: boolean;
   last_checked: string | null;
-  check_results: any;
-  target_type: string;
+  created_at: string | null;
 }
 
-interface TargetTableProps {
+interface Props {
   targets: Target[];
   onDelete: (id: number) => void;
 }
 
-const TargetTable: React.FC<TargetTableProps> = ({ targets, onDelete }) => {
-  const getRelativeTime = (dateStr: string | null): string => {
-    if (!dateStr) {
-      return 'Pending...';
-    }
+function relativeTime(iso: string | null): string {
+  if (!iso) return '—';
+  const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return `${Math.floor(diff / 60)} min ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)} hr ago`;
+  return `${Math.floor(diff / 86400)} d ago`;
+}
 
-    const now = new Date();
-    const date = new Date(dateStr.endsWith('Z') || dateStr.includes('+') ? dateStr : dateStr + 'Z');
-    const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+function StatusBadge({ target }: { target: Target }) {
+  if (!target.last_checked) return (
+    <span className="text-[10px] font-bold px-2 py-0.5 rounded text-white uppercase tracking-wide" style={{ background: '#f39c12' }}>PENDING</span>
+  );
+  return target.is_blacklisted
+    ? <span className="text-[10px] font-bold px-2 py-0.5 rounded text-white uppercase tracking-wide" style={{ background: '#e74c3c' }}>LISTED</span>
+    : <span className="text-[10px] font-bold px-2 py-0.5 rounded text-white uppercase tracking-wide" style={{ background: '#27ae60' }}>CLEAN</span>;
+}
 
-    if (seconds < 60) {
-      return 'just now';
-    }
-
-    if (seconds < 3600) {
-      const minutes = Math.floor(seconds / 60);
-      return `${minutes} min ago`;
-    }
-
-    if (seconds < 86400) {
-      const hours = Math.floor(seconds / 3600);
-      return `${hours} hr ago`;
-    }
-
-    return date.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
-  };
+const TargetTable: React.FC<Props> = ({ targets, onDelete }) => {
+  if (targets.length === 0) {
+    return (
+      <div className="border border-panel-border bg-white px-4 py-6 text-center text-muted text-sm">
+        No assets monitored yet. Add an IP or domain above.
+      </div>
+    );
+  }
 
   return (
-    <div className="bg-white border border-border rounded-2xl shadow-soft overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="w-full text-left">
-          <thead>
-            <tr className="bg-muted/30 border-b border-border">
-              <th className="px-8 py-5 text-xs font-bold text-muted-foreground uppercase tracking-widest">Asset</th>
-              <th className="px-8 py-5 text-xs font-bold text-muted-foreground uppercase tracking-widest">Status</th>
-              <th className="px-8 py-5 text-xs font-bold text-muted-foreground uppercase tracking-widest">Last Check</th>
-              <th className="px-8 py-5 text-xs font-bold text-muted-foreground uppercase tracking-widest text-right">Action</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {targets.length === 0 ? (
-              <tr>
-                <td colSpan={4} className="px-8 py-16 text-center">
-                  <div className="flex flex-col items-center gap-2">
-                    <ShieldCheck size={48} className="text-slate-200" />
-                    <p className="text-slate-500 font-medium">No monitored assets yet</p>
-                    <p className="text-slate-400 text-sm">Add an IP or domain to start monitoring</p>
-                  </div>
-                </td>
-              </tr>
-            ) : (
-              targets.map((target) => (
-                <tr key={target.id} className="hover:bg-slate-50/50 transition-colors group">
-                  <td className="px-8 py-5 whitespace-nowrap">
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-500 group-hover:bg-primary group-hover:text-white transition-all duration-300">
-                        <ExternalLink size={16} />
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-slate-700">{target.address}</span>
-                        {target.target_type.toUpperCase() === 'IP' ? (
-                          <span className="text-[10px] font-bold bg-blue-50 text-blue-500 px-1.5 py-0.5 rounded-md">IP</span>
-                        ) : (
-                          <span className="text-[10px] font-bold bg-purple-50 text-purple-500 px-1.5 py-0.5 rounded-md">DOMAIN</span>
-                        )}
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-8 py-5 whitespace-nowrap">
-                    <div className="flex items-center gap-2">
-                      {target.last_checked === null ? (
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-100 text-slate-500">
-                          <Clock size={14} />
-                          PENDING
-                        </span>
-                      ) : target.is_blacklisted ? (
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-orange-100 text-orange-600">
-                          <ShieldAlert size={14} />
-                          LISTED
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-100 text-emerald-600">
-                          <ShieldCheck size={14} />
-                          CLEAN
-                        </span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-8 py-5 whitespace-nowrap text-sm text-slate-500 font-medium">
-                    <div className="flex items-center gap-2">
-                      <Clock size={16} className="text-slate-400" />
-                      {getRelativeTime(target.last_checked)}
-                    </div>
-                  </td>
-                  <td className="px-8 py-5 whitespace-nowrap text-right">
-                    <button
-                      onClick={() => onDelete(target.id)}
-                      className="p-2.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all opacity-0 group-hover:opacity-100"
-                    >
-                      <Trash2 size={18} />
-                    </button>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
+    <table className="w-full text-xs border-collapse border border-panel-border">
+      <thead>
+        <tr style={{ background: '#2c3e50', color: 'white' }}>
+          <th className="px-3 py-2 text-left uppercase font-bold tracking-wide border border-[#3d5166] w-24">Status</th>
+          <th className="px-3 py-2 text-left uppercase font-bold tracking-wide border border-[#3d5166]">IP / Domain</th>
+          <th className="px-3 py-2 text-left uppercase font-bold tracking-wide border border-[#3d5166] w-16">Type</th>
+          <th className="px-3 py-2 text-left uppercase font-bold tracking-wide border border-[#3d5166] w-28">Last Check</th>
+          <th className="px-3 py-2 text-left uppercase font-bold tracking-wide border border-[#3d5166] w-28">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {targets.map((t, i) => (
+          <tr key={t.id} className={i % 2 === 0 ? 'bg-white' : 'bg-row-alt'}>
+            <td className="px-3 py-1.5 border border-panel-border"><StatusBadge target={t} /></td>
+            <td className="px-3 py-1.5 border border-panel-border font-mono text-foreground">{t.address}</td>
+            <td className="px-3 py-1.5 border border-panel-border uppercase text-[10px] text-muted font-bold">{t.target_type}</td>
+            <td className="px-3 py-1.5 border border-panel-border text-muted">{relativeTime(t.last_checked)}</td>
+            <td className="px-3 py-1.5 border border-panel-border">
+              <div className="flex items-center gap-2">
+                {t.is_blacklisted && (
+                  <Link to={`/problems/${t.id}`} className="text-primary hover:underline flex items-center gap-1 text-[11px]">
+                    <ExternalLink size={11} /> Detail
+                  </Link>
+                )}
+                <button
+                  onClick={() => onDelete(t.id)}
+                  className="text-danger hover:text-red-800 flex items-center gap-1 text-[11px]"
+                >
+                  <Trash2 size={11} /> Remove
+                </button>
+              </div>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+      <tfoot>
+        <tr className="bg-[#f0f2f5]">
+          <td colSpan={5} className="px-3 py-1.5 border border-panel-border text-muted text-[11px]">
+            Showing {targets.length} asset{targets.length !== 1 ? 's' : ''} — {targets.filter(t => t.is_blacklisted).length} listed, {targets.filter(t => !t.is_blacklisted && t.last_checked).length} clean
+          </td>
+        </tr>
+      </tfoot>
+    </table>
   );
 };
 

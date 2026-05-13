@@ -19,7 +19,7 @@ def send_slack_alert(target_address: str, status: bool):
     
     message = f"🚨 *Blacklist Alert* 🚨\nTarget: `{target_address}` is now *{'LISTED' if status else 'CLEAN'}*."
     try:
-        requests.post(SLACK_WEBHOOK_URL, json={"text": message})
+        requests.post(SLACK_WEBHOOK_URL, json={"text": message}, timeout=10)
     except Exception as e:
         logger.error("slack_alert_error", extra={"error": str(e)})
 
@@ -36,7 +36,7 @@ def send_email_alert(target_address: str, status: bool):
     msg['To'] = ALERT_EMAIL_TO
     
     try:
-        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=10) as server:
             server.starttls()
             server.login(SMTP_USER, SMTP_PASSWORD)
             server.send_message(msg)

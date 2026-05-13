@@ -1,7 +1,8 @@
+import json
 import logging
 import datetime
 from .worker import celery_app
-from .checker import check_target
+from .checker import check_target, COMMON_DNSBLS
 from .database import SessionLocal
 from .models import Target, CheckHistory
 from .alerts import send_slack_alert, send_email_alert
@@ -9,8 +10,8 @@ from .alerts import send_slack_alert, send_email_alert
 logger = logging.getLogger(__name__)
 
 
-@celery_app.task
-def monitor_target_task(target_id: int):
+@celery_app.task(bind=True, max_retries=3, default_retry_delay=60)
+def monitor_target_task(self, target_id: int):
     db = SessionLocal()
     try:
         target = db.query(Target).filter(Target.id == target_id).first()
@@ -20,27 +21,36 @@ def monitor_target_task(target_id: int):
 
         logger.info("check_start", extra={"address": target.address, "target_type": target.target_type})
         previous_state = target.is_blacklisted
-        is_listed = check_target(target.address, target.target_type)
+
+        # Returns list of DNSBL zones where the IP is listed
+        hits = check_target(target.address, target.target_type)
+        is_listed = bool(hits)
 
         target.is_blacklisted = is_listed
         target.last_checked = datetime.datetime.now(datetime.timezone.utc)
 
-        if is_listed and not previous_state:
+        if is_listed != previous_state:
             send_slack_alert(target.address, is_listed)
             send_email_alert(target.address, is_listed)
+
+        details = json.dumps({
+            "hits": hits,
+            "total_checked": len(COMMON_DNSBLS),
+            "checked_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        })
 
         db.add(CheckHistory(
             target_id=target.id,
             status=is_listed,
-            details=f"Checked via DNSBL on {datetime.datetime.now(datetime.timezone.utc).isoformat()}",
+            details=details,
         ))
         db.commit()
         result = "Listed" if is_listed else "Clean"
-        logger.info("check_done", extra={"address": target.address, "result": result})
-        return f"Checked {target.address}: {result}"
+        logger.info("check_done", extra={"address": target.address, "result": result, "hits": len(hits)})
+        return f"Checked {target.address}: {result} ({len(hits)} hits)"
     except Exception as exc:
         logger.error("check_error", extra={"target_id": target_id, "error": str(exc)})
-        raise
+        raise self.retry(exc=exc, countdown=60)
     finally:
         db.close()
 

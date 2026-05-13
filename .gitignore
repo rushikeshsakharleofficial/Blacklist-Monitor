@@ -6,6 +6,10 @@ __pycache__/
 frontend/.env
 backend/.venv/
 *.db
+test.db
+backend/test.db
 celerybeat-schedule
 self-signed.crt
 self-signed.key
+nginx/self-signed.crt
+nginx/self-signed.key

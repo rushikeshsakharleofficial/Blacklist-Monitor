@@ -37,6 +37,19 @@ def mock_celery_delay():
     with patch("app.tasks.monitor_target_task.delay") as mock:
         yield mock
 
+
+@pytest.fixture(autouse=True)
+def reset_limiter():
+    """Clear rate limiter counters between tests to prevent test pollution."""
+    yield
+    try:
+        from app.main import limiter
+        # slowapi 0.1.x stores limits.MemoryStorage in limiter._storage
+        if hasattr(limiter, "_storage") and hasattr(limiter._storage, "_cache"):
+            limiter._storage._cache.clear()
+    except Exception:
+        pass
+
 @pytest.fixture()
 def client(db):
     def override_get_db():
