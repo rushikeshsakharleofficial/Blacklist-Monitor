@@ -34,13 +34,67 @@ function HBar({ value, max, color = 'var(--accent)', height = 16 }: { value: num
   );
 }
 
+const DNSBL_COLORS = [
+  'var(--danger)', '#f97316', 'var(--warning)', '#84cc16', 'var(--accent)',
+  '#8b5cf6', '#06b6d4', '#ec4899', '#14b8a6', '#f59e0b',
+];
+
+function DnsblPieChart({ data }: { data: { zone: string; hits: number }[] }) {
+  if (!data.length) return <div className="text-text-sec text-sm text-center py-6">No data yet — checks may be running</div>;
+  const total = data.reduce((s, d) => s + d.hits, 0);
+  const R = 70, cx = 90, cy = 90, stroke = 28;
+  let offset = -Math.PI / 2;
+  const slices = data.slice(0, 10).map((d, i) => {
+    const angle = (d.hits / total) * 2 * Math.PI;
+    const x1 = cx + R * Math.cos(offset);
+    const y1 = cy + R * Math.sin(offset);
+    // For 100% (single item), use two arcs to form a full circle
+    const isFull = angle >= 2 * Math.PI - 0.001;
+    const x2 = isFull ? cx + R * Math.cos(offset + Math.PI) : cx + R * Math.cos(offset + angle);
+    const y2 = isFull ? cy + R * Math.sin(offset + Math.PI) : cy + R * Math.sin(offset + angle);
+    const large = angle > Math.PI ? 1 : 0;
+    const pathD = isFull
+      ? `M ${x1} ${y1} A ${R} ${R} 0 1 1 ${x2} ${y2} A ${R} ${R} 0 1 1 ${x1} ${y1}`
+      : `M ${x1} ${y1} A ${R} ${R} 0 ${large} 1 ${x2} ${y2}`;
+    const path = { d: pathD, color: DNSBL_COLORS[i % DNSBL_COLORS.length], zone: d.zone, hits: d.hits, pct: Math.round(d.hits / total * 100) };
+    offset += angle;
+    return path;
+  });
+  return (
+    <div className="flex flex-col sm:flex-row items-start gap-6 p-4">
+      <svg width="180" height="180" viewBox="0 0 180 180" className="flex-shrink-0">
+        {slices.map((s, i) => (
+          <path key={i} d={s.d} fill="none" stroke={s.color} strokeWidth={stroke} strokeLinecap="butt" opacity={0.9}>
+            <title>{s.zone}: {s.hits} hits ({s.pct}%)</title>
+          </path>
+        ))}
+        <text x={cx} y={cy - 8} textAnchor="middle" fontSize="18" fontWeight="700" fill="var(--text-base)">{total}</text>
+        <text x={cx} y={cy + 10} textAnchor="middle" fontSize="10" fill="var(--text-sec)">total hits</text>
+      </svg>
+      <div className="flex-1 space-y-2 min-w-0">
+        {slices.map((s, i) => (
+          <div key={i} className="flex items-center gap-2 text-sm">
+            <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: s.color }} />
+            <span className="font-mono text-text-base truncate flex-1 text-xs">{s.zone}</span>
+            <span className="text-xs text-text-muted w-6 text-right">{s.pct}%</span>
+            <span className="font-semibold text-danger text-xs w-6 text-right">{s.hits}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function DailyChart({ data }: { data: DailyRow[] }) {
   if (!data.length) return <div className="text-text-sec text-sm text-center py-6">No check data yet</div>;
   const maxChecks = Math.max(...data.map(d => d.checks), 1);
-  const W = 720, H = 100, BAR_W = Math.min(40, Math.max(4, Math.floor((W - 40) / data.length) - 2));
-  const x = (i: number) => 40 + i * ((W - 40) / data.length) + (((W - 40) / data.length) - BAR_W) / 2;
+  const H = 80;
+  const BAR_W = Math.min(40, Math.max(8, Math.floor(680 / data.length) - 4));
+  const GAP = Math.max(2, Math.floor(680 / data.length) - BAR_W);
+  const W = Math.max(240, data.length * (BAR_W + GAP) + 60);
+  const x = (i: number) => 40 + i * (BAR_W + GAP) + (GAP / 2);
   return (
-    <svg width="100%" viewBox={`0 0 ${W} ${H + 24}`} style={{ display: 'block' }}>
+    <svg width="100%" height={H + 20} viewBox={`0 0 ${W} ${H + 20}`} preserveAspectRatio="none" style={{ display: 'block' }}>
       {[0, 0.5, 1].map(f => (
         <line key={f} x1={40} y1={H * (1 - f)} x2={W} y2={H * (1 - f)} stroke="var(--border)" strokeWidth={1} />
       ))}
@@ -117,7 +171,6 @@ export default function ReportsPage() {
   };
 
   const maxSubnet = subnets[0]?.listed || 1;
-  const maxDnsbl = dnsbls[0]?.hits || 1;
 
   return (
     <div>
@@ -189,8 +242,8 @@ export default function ReportsPage() {
               <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-sm" style={{ background: 'var(--danger)' }}></span> Listed</span>
             </div>
           </div>
-          <div className="px-3 py-3">
-            {loading ? <div className="text-text-sec text-sm text-center py-6">Loading…</div> : <DailyChart data={daily} />}
+          <div className="px-3 pt-2 pb-1">
+            {loading ? <div className="text-text-sec text-sm text-center py-4">Loading…</div> : <DailyChart data={daily} />}
           </div>
         </div>
 
@@ -199,17 +252,9 @@ export default function ReportsPage() {
           <div className="px-4 py-3 border-b border-border-base">
             <span className="text-sm font-semibold text-text-base">Top DNSBL Zones</span>
           </div>
-          <div className="divide-y divide-border-base">
+          <div>
             {loading ? <div className="text-text-sec text-sm text-center py-6">Loading…</div>
-              : dnsbls.length === 0 ? <div className="text-text-sec text-sm text-center py-6">No data yet — checks may be running</div>
-              : dnsbls.map((d, i) => (
-              <div key={d.zone} className="flex items-center gap-3 px-4 py-2">
-                <span className="text-xs font-semibold text-text-sec w-5 text-right">{i + 1}</span>
-                <span className="font-mono text-sm text-text-base w-48 truncate flex-shrink-0">{d.zone}</span>
-                <HBar value={d.hits} max={maxDnsbl} color="var(--danger)" />
-                <span className="font-mono text-sm font-semibold text-danger w-12 text-right">{d.hits.toLocaleString()}</span>
-              </div>
-            ))}
+              : <DnsblPieChart data={dnsbls} />}
           </div>
         </div>
       </div>
