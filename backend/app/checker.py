@@ -172,8 +172,11 @@ def _cymru_asn_name(ip: str) -> str | None:
         return None
 
 
+_ORG_CACHE_TTL = 86400  # 24 hours
+
+
 def lookup_org(ip: str) -> str | None:
-    """Return registered owner/org for an IPv4 address.
+    """Return registered owner/org for an IPv4 address. Results cached in Redis for 24h.
     Tries RDAP first (actual registrant name), falls back to cleaned Cymru ASN name."""
     try:
         addr = ipaddress.ip_address(ip)
@@ -181,29 +184,49 @@ def lookup_org(ip: str) -> str | None:
             return None
     except Exception:
         return None
+
+    cache_key = f"org:{ip}"
+    try:
+        from .redis_client import rclient
+        cached = rclient.get(cache_key)
+        if cached is not None:
+            return cached or None  # empty string sentinel → None
+    except Exception:
+        pass
+
+    result: str | None = None
     try:
         from ipwhois import IPWhois
-        result = IPWhois(ip).lookup_rdap(depth=0, retry_count=1)
-        # 1. Try first description remark on the network block (actual registrant name)
-        remarks = result.get("network", {}).get("remarks") or []
+        rdap = IPWhois(ip).lookup_rdap(depth=0, retry_count=1)
+        remarks = rdap.get("network", {}).get("remarks") or []
         for rem in remarks:
             if rem.get("title") == "description" and rem.get("description"):
                 first_line = rem["description"].split("\n")[0].strip()
                 if first_line and len(first_line) > 2:
-                    return first_line[:100]
-        # 2. Clean up asn_description: "GOOGLE - Google LLC, US" → "Google LLC"
-        asn_desc = result.get("asn_description", "") or ""
-        if asn_desc:
-            if " - " in asn_desc:
-                asn_desc = asn_desc.split(" - ", 1)[1]
-            if "," in asn_desc:
-                asn_desc = asn_desc.rsplit(",", 1)[0].strip()
-            if asn_desc and len(asn_desc) > 2:
-                return asn_desc[:100]
+                    result = first_line[:100]
+                    break
+        if not result:
+            asn_desc = rdap.get("asn_description", "") or ""
+            if asn_desc:
+                if " - " in asn_desc:
+                    asn_desc = asn_desc.split(" - ", 1)[1]
+                if "," in asn_desc:
+                    asn_desc = asn_desc.rsplit(",", 1)[0].strip()
+                if asn_desc and len(asn_desc) > 2:
+                    result = asn_desc[:100]
     except Exception:
         pass
-    # 3. Fallback: Cymru ASN name (DNS-based, already cleaned)
-    return _cymru_asn_name(ip)
+
+    if not result:
+        result = _cymru_asn_name(ip)
+
+    try:
+        from .redis_client import rclient
+        rclient.setex(cache_key, _ORG_CACHE_TTL, result or "")
+    except Exception:
+        pass
+
+    return result
 
 
 def lookup_org_for_target(address: str, target_type: str) -> str | None:

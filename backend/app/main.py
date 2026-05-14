@@ -137,6 +137,10 @@ class BlacklistHitsResponse(BaseModel):
     checked_at: Optional[dt.datetime] = None
 
 
+class BulkDeleteRequest(BaseModel):
+    ids: list[int]
+
+
 def infer_target_type(value: str) -> str:
     if "/" in value:
         try:
@@ -379,12 +383,11 @@ def recheck_all(request: Request):
 
 @app.post("/targets/bulk-delete", dependencies=[Depends(require("targets:delete"))])
 @limiter.limit("10/minute")
-def bulk_delete_targets(request: Request, body: dict, db: Session = Depends(get_db)):
-    ids = body.get("ids", [])
-    if not ids or not isinstance(ids, list):
+def bulk_delete_targets(request: Request, body: BulkDeleteRequest, db: Session = Depends(get_db)):
+    if not body.ids:
         raise HTTPException(status_code=422, detail="ids array required")
-    db.query(models.CheckHistory).filter(models.CheckHistory.target_id.in_(ids)).delete(synchronize_session=False)
-    deleted = db.query(models.Target).filter(models.Target.id.in_(ids)).delete(synchronize_session=False)
+    db.query(models.CheckHistory).filter(models.CheckHistory.target_id.in_(body.ids)).delete(synchronize_session=False)
+    deleted = db.query(models.Target).filter(models.Target.id.in_(body.ids)).delete(synchronize_session=False)
     db.commit()
     return {"deleted": deleted}
 
@@ -403,7 +406,7 @@ def delete_target(request: Request, target_id: int, db: Session = Depends(get_db
 
 @app.get("/targets/{target_id}/history", dependencies=[Depends(require("targets:read"))], response_model=list[CheckHistoryResponse])
 @limiter.limit("60/minute")
-def get_target_history(request: Request, target_id: int, db: Session = Depends(get_db)):
+def get_target_history(request: Request, target_id: int, db: Session = Depends(get_db), limit: int = 100):
     target = db.query(models.Target).filter(models.Target.id == target_id).first()
     if not target:
         raise HTTPException(status_code=404, detail="Target not found")
@@ -411,6 +414,7 @@ def get_target_history(request: Request, target_id: int, db: Session = Depends(g
         db.query(models.CheckHistory)
         .filter(models.CheckHistory.target_id == target_id)
         .order_by(models.CheckHistory.checked_at.desc())
+        .limit(min(limit, 500))
         .all()
     )
 
@@ -525,7 +529,7 @@ async def problems_websocket(websocket: WebSocket):
 
     try:
         while True:
-            data = await asyncio.get_event_loop().run_in_executor(None, get_listed_payload)
+            data = await asyncio.get_running_loop().run_in_executor(None, get_listed_payload)
             await websocket.send_json({"type": "problems_update", "data": data, "count": len(data)})
             await asyncio.sleep(10)
     except WebSocketDisconnect:
