@@ -278,7 +278,7 @@ def subnet_expand(request: Request, body: SubnetScanRequest, db: Session = Depen
 
 @app.post("/scan/subnet", dependencies=[Depends(require("scan:run"))])
 @limiter.limit("5/minute")
-def scan_subnet_start(request: Request, body: SubnetScanRequest):
+def scan_subnet_start(request: Request, body: SubnetScanRequest, db: Session = Depends(get_db)):
     """Start async subnet scan via Celery. Poll GET /scan/subnet/{scan_id} for progress."""
     try:
         net = ipaddress.ip_network(body.cidr.strip(), strict=False)
@@ -295,8 +295,18 @@ def scan_subnet_start(request: Request, body: SubnetScanRequest):
     _rclient.setex(f"scan:{scan_id}:info", TTL, json.dumps({"cidr": str(net), "total": total, "complete": False}))
     _rclient.setex(f"scan:{scan_id}:done", TTL, 0)
 
-    tasks.scan_subnet_task.delay(scan_id, str(net))
-    return {"scan_id": scan_id, "cidr": str(net), "total": total}
+    sess = models.ScanSession(
+        session_type="single",
+        params=json.dumps({"cidr": str(net)}),
+        scan_ref=scan_id,
+        total_ips=total,
+    )
+    db.add(sess)
+    db.commit()
+    db.refresh(sess)
+
+    tasks.scan_subnet_task.delay(scan_id, str(net), sess.id)
+    return {"scan_id": scan_id, "session_id": sess.id, "cidr": str(net), "total": total}
 
 
 @app.get("/scan/subnet/{scan_id}", dependencies=[Depends(require("scan:run"))])
@@ -328,7 +338,7 @@ class BulkScanRequest(BaseModel):
 
 @app.post("/scan/subnets/bulk", dependencies=[Depends(require("scan:run"))])
 @limiter.limit("3/minute")
-def bulk_scan_start(request: Request, body: BulkScanRequest):
+def bulk_scan_start(request: Request, body: BulkScanRequest, db: Session = Depends(get_db)):
     """Start async DNSBL scans for multiple subnets. Returns batch_id to poll progress."""
     if not body.cidrs:
         raise HTTPException(status_code=422, detail="cidrs array required")
@@ -338,6 +348,7 @@ def bulk_scan_start(request: Request, body: BulkScanRequest):
     TTL = 7200
     batch_id = str(uuid.uuid4())
     scans = []
+    total_all = 0
 
     for raw_cidr in body.cidrs:
         try:
@@ -348,6 +359,7 @@ def bulk_scan_start(request: Request, body: BulkScanRequest):
             continue
         ips = [str(ip) for ip in net.hosts()] or [str(net.network_address)]
         total = len(ips)
+        total_all += total
         scan_id = str(uuid.uuid4())
         _rclient.setex(f"scan:{scan_id}:info", TTL, json.dumps({"cidr": str(net), "total": total, "complete": False}))
         _rclient.setex(f"scan:{scan_id}:done", TTL, 0)
@@ -355,7 +367,18 @@ def bulk_scan_start(request: Request, body: BulkScanRequest):
         scans.append({"cidr": str(net), "scan_id": scan_id, "total": total})
 
     _rclient.setex(f"batch:{batch_id}:scans", TTL, json.dumps(scans))
-    return {"batch_id": batch_id, "subnet_count": len(scans), "scans": scans}
+
+    sess = models.ScanSession(
+        session_type="bulk",
+        params=json.dumps({"cidrs": [s["cidr"] for s in scans]}),
+        scan_ref=batch_id,
+        total_ips=total_all,
+    )
+    db.add(sess)
+    db.commit()
+    db.refresh(sess)
+
+    return {"batch_id": batch_id, "session_id": sess.id, "subnet_count": len(scans), "scans": scans}
 
 
 @app.get("/scan/subnets/bulk/{batch_id}", dependencies=[Depends(require("scan:run"))])
@@ -409,6 +432,86 @@ def bulk_scan_progress(request: Request, batch_id: str):
         "complete": all_complete,
         "subnets": subnets,
     }
+
+
+class ScanSessionResponse(BaseModel):
+    id: int
+    session_type: str
+    params: str
+    scan_ref: Optional[str] = None
+    status: str
+    total_ips: int
+    total_listed: int
+    created_at: Optional[dt.datetime] = None
+    completed_at: Optional[dt.datetime] = None
+    model_config = {"from_attributes": True}
+
+
+@app.get("/scan/sessions", dependencies=[Depends(require("scan:run"))], response_model=list[ScanSessionResponse])
+def list_scan_sessions(db: Session = Depends(get_db)):
+    return (
+        db.query(models.ScanSession)
+        .order_by(models.ScanSession.created_at.desc())
+        .limit(200)
+        .all()
+    )
+
+
+@app.get("/scan/sessions/{session_id}", dependencies=[Depends(require("scan:run"))])
+def get_scan_session(session_id: int, db: Session = Depends(get_db)):
+    sess = db.query(models.ScanSession).filter(models.ScanSession.id == session_id).first()
+    if not sess:
+        raise HTTPException(status_code=404, detail="Session not found")
+    result = {
+        "id": sess.id,
+        "session_type": sess.session_type,
+        "params": json.loads(sess.params),
+        "scan_ref": sess.scan_ref,
+        "status": sess.status,
+        "total_ips": sess.total_ips,
+        "total_listed": sess.total_listed,
+        "created_at": sess.created_at.isoformat() if sess.created_at else None,
+        "completed_at": sess.completed_at.isoformat() if sess.completed_at else None,
+        "results_available": False,
+        "live_data": None,
+    }
+    if sess.scan_ref and sess.status == "running":
+        if sess.session_type == "single":
+            info_raw = _rclient.get(f"scan:{sess.scan_ref}:info")
+            if info_raw:
+                info = json.loads(info_raw)
+                done = int(_rclient.get(f"scan:{sess.scan_ref}:done") or 0)
+                results = [json.loads(r) for r in _rclient.lrange(f"scan:{sess.scan_ref}:results", 0, -1)]
+                result["results_available"] = True
+                result["live_data"] = {"done": done, "total": info["total"], "complete": info["complete"], "results": results}
+        elif sess.session_type == "bulk":
+            batch_raw = _rclient.get(f"batch:{sess.scan_ref}:scans")
+            if batch_raw:
+                result["results_available"] = True
+                result["live_data"] = {"batch_id": sess.scan_ref}
+    elif sess.scan_ref and sess.status == "complete":
+        if sess.session_type == "single":
+            info_raw = _rclient.get(f"scan:{sess.scan_ref}:info")
+            if info_raw:
+                results = [json.loads(r) for r in _rclient.lrange(f"scan:{sess.scan_ref}:results", 0, -1)]
+                result["results_available"] = True
+                result["live_data"] = {"done": sess.total_ips, "total": sess.total_ips, "complete": True, "results": results}
+    return result
+
+
+@app.patch("/scan/sessions/{session_id}", dependencies=[Depends(require("scan:run"))])
+def update_scan_session(session_id: int, body: dict, db: Session = Depends(get_db)):
+    sess = db.query(models.ScanSession).filter(models.ScanSession.id == session_id).first()
+    if not sess:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if "status" in body:
+        sess.status = body["status"]
+    if "total_listed" in body:
+        sess.total_listed = body["total_listed"]
+    if body.get("status") in ("complete", "failed"):
+        sess.completed_at = dt.datetime.now(dt.timezone.utc)
+    db.commit()
+    return {"ok": True}
 
 
 @app.post("/targets/", dependencies=[Depends(require("targets:write"))], response_model=TargetResponse)
@@ -543,8 +646,8 @@ def bulk_add_targets(request: Request, body: BulkAddRequest, db: Session = Depen
 
 @app.get("/targets/", dependencies=[Depends(require("targets:read"))], response_model=list[TargetResponse])
 @limiter.limit("60/minute")
-def list_targets(request: Request, db: Session = Depends(get_db), skip: int = 0, limit: int = 100):
-    return db.query(models.Target).offset(skip).limit(min(limit, 1000)).all()
+def list_targets(request: Request, db: Session = Depends(get_db), skip: int = 0):
+    return db.query(models.Target).offset(skip).all()
 
 
 @app.get("/targets/{target_id}", dependencies=[Depends(require("targets:write"))], response_model=TargetResponse)
