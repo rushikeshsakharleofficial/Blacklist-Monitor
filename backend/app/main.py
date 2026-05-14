@@ -19,6 +19,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from . import models, database, tasks, checker
+from . import ldap_auth as _ldap_auth
 from .logging_config import setup_logging
 from .auth import get_db, get_current_user, require, hash_password, verify_password, _user_permissions
 from .permissions import BUILTIN_ROLES
@@ -138,6 +139,23 @@ class BlacklistHitsResponse(BaseModel):
     checked_at: Optional[dt.datetime] = None
 
 
+class LdapConfigUpdate(BaseModel):
+    is_enabled: bool = False
+    host: str = ''
+    port: int = 389
+    tls_mode: str = 'none'
+    bind_dn: str = ''
+    bind_password: str = ''
+    user_search_base: str = ''
+    user_search_filter: str = '(mail={email})'
+    group_search_base: str = ''
+    group_member_attr: str = 'memberOf'
+
+class LdapGroupMappingCreate(BaseModel):
+    ldap_group: str
+    role_id: int
+
+
 class BulkDeleteRequest(BaseModel):
     ids: list[int]
 
@@ -216,12 +234,21 @@ def setup(request: Request, body: SetupRequest, db: Session = Depends(get_db)):
 @app.post("/auth/login")
 @limiter.limit("10/minute")
 def login(request: Request, body: LoginRequest, db: Session = Depends(get_db)):
-    admin = db.query(models.AdminUser).filter(
-        models.AdminUser.email == body.email.strip().lower(),
-        models.AdminUser.is_active == True,
-    ).first()
-    if not admin or not verify_password(body.password, admin.hashed_password):
-        raise HTTPException(status_code=401, detail="Invalid email or password")
+    email = body.email.strip().lower()
+
+    # 1. Try LDAP first
+    admin = _ldap_auth.authenticate(email, body.password, db)
+
+    # 2. Fall back to local password auth (local users only)
+    if admin is None:
+        admin = db.query(models.AdminUser).filter(
+            models.AdminUser.email == email,
+            models.AdminUser.is_active == True,
+            models.AdminUser.auth_source == 'local',
+        ).first()
+        if not admin or not verify_password(body.password, admin.hashed_password):
+            raise HTTPException(status_code=401, detail="Invalid email or password")
+
     admin.last_login = dt.datetime.now(dt.timezone.utc)
     db.commit()
     perms = _user_permissions(admin)
@@ -485,11 +512,29 @@ def get_scan_session(session_id: int, db: Session = Depends(get_db)):
                 results = [json.loads(r) for r in _rclient.lrange(f"scan:{sess.scan_ref}:results", 0, -1)]
                 result["results_available"] = True
                 result["live_data"] = {"done": done, "total": info["total"], "complete": info["complete"], "results": results}
+            else:
+                # Redis expired but task completed — auto-heal session status
+                import datetime as _dt2
+                sess.status = "complete"
+                if not sess.completed_at:
+                    sess.completed_at = _dt2.datetime.now(_dt2.timezone.utc)
+                db.commit()
+                result["status"] = "complete"
+                result["completed_at"] = sess.completed_at.isoformat() if sess.completed_at else None
         elif sess.session_type == "bulk":
             batch_raw = _rclient.get(f"batch:{sess.scan_ref}:scans")
             if batch_raw:
                 result["results_available"] = True
                 result["live_data"] = {"batch_id": sess.scan_ref}
+            else:
+                # Redis expired — auto-heal
+                import datetime as _dt2
+                sess.status = "complete"
+                if not sess.completed_at:
+                    sess.completed_at = _dt2.datetime.now(_dt2.timezone.utc)
+                db.commit()
+                result["status"] = "complete"
+                result["completed_at"] = sess.completed_at.isoformat() if sess.completed_at else None
     elif sess.scan_ref and sess.status == "complete":
         if sess.session_type == "single":
             info_raw = _rclient.get(f"scan:{sess.scan_ref}:info")
@@ -913,6 +958,104 @@ def get_blacklist_hits(request: Request, target_id: int, db: Session = Depends(g
         total_checked=total_checked,
         checked_at=checked_at,
     )
+
+
+# ---------------------------------------------------------------------------
+# LDAP Configuration endpoints
+# ---------------------------------------------------------------------------
+
+@app.get("/ldap/config", dependencies=[Depends(require("settings:read"))])
+def get_ldap_config(db: Session = Depends(get_db)):
+    cfg = db.query(models.LdapConfig).first()
+    if not cfg:
+        return {
+            "is_enabled": False, "host": "", "port": 389, "tls_mode": "none",
+            "bind_dn": "", "bind_password": "", "user_search_base": "",
+            "user_search_filter": "(mail={email})", "group_search_base": "",
+            "group_member_attr": "memberOf",
+        }
+    return {
+        "is_enabled": cfg.is_enabled,
+        "host": cfg.host,
+        "port": cfg.port,
+        "tls_mode": cfg.tls_mode,
+        "bind_dn": cfg.bind_dn,
+        "bind_password": "••••••••" if cfg.bind_password else "",
+        "user_search_base": cfg.user_search_base,
+        "user_search_filter": cfg.user_search_filter,
+        "group_search_base": cfg.group_search_base,
+        "group_member_attr": cfg.group_member_attr,
+    }
+
+
+@app.put("/ldap/config", dependencies=[Depends(require("settings:write"))])
+def update_ldap_config(body: LdapConfigUpdate, db: Session = Depends(get_db)):
+    cfg = db.query(models.LdapConfig).first()
+    if not cfg:
+        cfg = models.LdapConfig()
+        db.add(cfg)
+    cfg.is_enabled = body.is_enabled
+    cfg.host = body.host.strip()
+    cfg.port = body.port
+    cfg.tls_mode = body.tls_mode
+    cfg.bind_dn = body.bind_dn.strip()
+    if body.bind_password and not body.bind_password.startswith('•'):
+        cfg.bind_password = body.bind_password
+    cfg.user_search_base = body.user_search_base.strip()
+    cfg.user_search_filter = body.user_search_filter.strip()
+    cfg.group_search_base = body.group_search_base.strip()
+    cfg.group_member_attr = body.group_member_attr.strip()
+    db.commit()
+    return {"ok": True}
+
+
+@app.post("/ldap/test-connection", dependencies=[Depends(require("settings:write"))])
+def test_ldap_connection(body: LdapConfigUpdate):
+    return _ldap_auth.test_connection({
+        "host": body.host,
+        "port": body.port,
+        "tls_mode": body.tls_mode,
+        "bind_dn": body.bind_dn,
+        "bind_password": body.bind_password,
+    })
+
+
+@app.get("/ldap/group-mappings", dependencies=[Depends(require("settings:read"))])
+def list_ldap_group_mappings(db: Session = Depends(get_db)):
+    mappings = db.query(models.LdapGroupRoleMap).all()
+    return [
+        {"id": m.id, "ldap_group": m.ldap_group, "role_id": m.role_id, "role_name": m.role.name}
+        for m in mappings
+    ]
+
+
+@app.post("/ldap/group-mappings", dependencies=[Depends(require("settings:write"))])
+def create_ldap_group_mapping(body: LdapGroupMappingCreate, db: Session = Depends(get_db)):
+    role = db.query(models.Role).filter(models.Role.id == body.role_id).first()
+    if not role:
+        raise HTTPException(status_code=404, detail="Role not found")
+    existing = db.query(models.LdapGroupRoleMap).filter(
+        models.LdapGroupRoleMap.ldap_group == body.ldap_group.strip()
+    ).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="Mapping for this group already exists")
+    mapping = models.LdapGroupRoleMap(ldap_group=body.ldap_group.strip(), role_id=body.role_id)
+    db.add(mapping)
+    db.commit()
+    db.refresh(mapping)
+    return {"id": mapping.id, "ldap_group": mapping.ldap_group, "role_id": mapping.role_id, "role_name": role.name}
+
+
+@app.delete("/ldap/group-mappings/{mapping_id}", dependencies=[Depends(require("settings:write"))])
+def delete_ldap_group_mapping(mapping_id: int, db: Session = Depends(get_db)):
+    mapping = db.query(models.LdapGroupRoleMap).filter(
+        models.LdapGroupRoleMap.id == mapping_id
+    ).first()
+    if not mapping:
+        raise HTTPException(status_code=404, detail="Mapping not found")
+    db.delete(mapping)
+    db.commit()
+    return {"ok": True}
 
 
 @app.websocket("/ws/problems")
