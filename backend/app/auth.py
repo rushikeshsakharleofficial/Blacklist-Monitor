@@ -1,11 +1,17 @@
 from __future__ import annotations
 import os
+import hashlib
 import bcrypt
 from fastapi import Depends, HTTPException, Security
 from fastapi.security import APIKeyHeader
 from sqlalchemy.orm import Session
 from . import models, database
 from .permissions import SELF_PERMISSIONS
+
+
+def _hash_api_key(key: str) -> str:
+    return hashlib.sha256(key.encode()).hexdigest()
+
 
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=True)
 
@@ -39,14 +45,24 @@ def get_current_user(
     key: str = Security(api_key_header),
     db: Session = Depends(get_db),
 ) -> models.AdminUser:
+    key_hash = _hash_api_key(key)
+    user = (
+        db.query(models.AdminUser)
+        .filter(models.AdminUser.api_key_hash == key_hash, models.AdminUser.is_active == True)
+        .first()
+    )
+    if user:
+        return user
+    # Fallback: plaintext match for rows not yet backfilled (test DBs, fresh installs pre-migration)
     user = (
         db.query(models.AdminUser)
         .filter(models.AdminUser.api_key == key, models.AdminUser.is_active == True)
         .first()
     )
-    if user:
+    if user and user.api_key_hash is None:
+        user.api_key_hash = key_hash
+        db.commit()
         return user
-    # Env-var fallback — only valid if no users are set up yet (pre-setup)
     if _ENV_API_KEY and key == _ENV_API_KEY:
         count = db.query(models.AdminUser).count()
         if count == 0:

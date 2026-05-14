@@ -190,8 +190,10 @@ def setup(request: Request, body: SetupRequest, db: Session = Depends(get_db)):
     api_key = body.api_key.strip() or secrets.token_urlsafe(32)
     hashed = hash_password(body.password)
     super_admin_role = db.query(models.Role).filter(models.Role.name == "super_admin").first()
+    from .auth import _hash_api_key
     admin = models.AdminUser(
         email=email, hashed_password=hashed, api_key=api_key,
+        api_key_hash=_hash_api_key(api_key),
         name=body.name.strip() or None,
         role_id=super_admin_role.id if super_admin_role else None,
         is_active=True,

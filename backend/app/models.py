@@ -36,6 +36,7 @@ class AdminUser(Base):
     email = Column(String, unique=True, nullable=False, index=True)
     hashed_password = Column(String, nullable=False)
     api_key = Column(String, nullable=False, unique=True)
+    api_key_hash = Column(String(64), nullable=True, unique=True, index=True)
     name = Column(String, nullable=True)
     role_id = Column(Integer, ForeignKey("roles.id"), nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
