@@ -162,7 +162,8 @@ const TargetTable: React.FC<Props> = ({ targets, onDelete, onBulkDelete }) => {
             <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec bg-subtle px-3 py-2.5 border-b border-border-base text-left">IP / Domain</th>
             <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec bg-subtle px-3 py-2.5 border-b border-border-base text-left">Provider / Org</th>
             <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec bg-subtle px-3 py-2.5 border-b border-border-base text-left w-24">ASN / NS</th>
-            <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec bg-subtle px-3 py-2.5 border-b border-border-base text-left w-20">Country / Score</th>
+            <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec bg-subtle px-3 py-2.5 border-b border-border-base text-left w-16">Country</th>
+            <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec bg-subtle px-3 py-2.5 border-b border-border-base text-left w-20">Score</th>
             <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec bg-subtle px-3 py-2.5 border-b border-border-base text-left w-16">Type</th>
             <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec bg-subtle px-3 py-2.5 border-b border-border-base text-left w-28">Last Check</th>
             <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec bg-subtle px-3 py-2.5 border-b border-border-base text-left w-44">Actions</th>
@@ -197,6 +198,16 @@ const TargetTable: React.FC<Props> = ({ targets, onDelete, onBulkDelete }) => {
                   <span>{t.asn || '—'}</span>
                 )}
               </td>
+              <td className="px-3 py-2.5 text-xs text-text-sec w-16 whitespace-nowrap">
+                {t.target_type === 'domain' ? (
+                  <span className="text-text-muted">—</span>
+                ) : (
+                  <div>
+                    {t.country_code || '—'}
+                    {t.is_hosting && <span className="ml-1.5 text-[9px] font-bold bg-subtle border border-border-base text-text-muted px-1 py-0.5 rounded uppercase">DC</span>}
+                  </div>
+                )}
+              </td>
               <td className="px-3 py-2.5 text-xs text-text-sec w-20 whitespace-nowrap">
                 {t.target_type === 'domain' ? (
                   <div className="space-y-0.5">
@@ -208,7 +219,7 @@ const TargetTable: React.FC<Props> = ({ targets, onDelete, onBulkDelete }) => {
                     <div className="flex gap-1 flex-wrap">
                       {t.has_spf && <span className="text-[9px] font-bold bg-success-bg text-success px-1 rounded">SPF</span>}
                       {t.has_dmarc && <span className="text-[9px] font-bold bg-success-bg text-success px-1 rounded">DMARC</span>}
-                      {t.has_mx && <span className="text-[9px] font-bold bg-subtle text-text-sec px-1 rounded">MX</span>}
+                      {t.has_mx && <span className="text-[9px] font-bold bg-subtle border border-border-base text-text-muted px-1 py-0.5 rounded uppercase">MX</span>}
                     </div>
                   </div>
                 ) : (
@@ -218,10 +229,7 @@ const TargetTable: React.FC<Props> = ({ targets, onDelete, onBulkDelete }) => {
                         {t.reputation_score}/100
                       </div>
                     )}
-                    <div>
-                      {t.country_code || '—'}
-                      {t.is_hosting && <span className="ml-1.5 text-[9px] font-bold bg-subtle border border-border-base text-text-muted px-1 py-0.5 rounded uppercase">DC</span>}
-                    </div>
+                    {t.reputation_score == null && <span className="text-text-muted">—</span>}
                   </div>
                 )}
               </td>
@@ -265,7 +273,7 @@ const TargetTable: React.FC<Props> = ({ targets, onDelete, onBulkDelete }) => {
         </tbody>
         <tfoot>
           <tr className="bg-subtle">
-            <td colSpan={9} className="px-3 py-2">
+            <td colSpan={10} className="px-3 py-2">
               <div className="flex items-center justify-between">
                 <span className="text-text-sec text-xs">
                   {targets.length} asset{targets.length !== 1 ? 's' : ''} — {targets.filter(t => t.is_blacklisted).length} listed, {targets.filter(t => !t.is_blacklisted && t.last_checked).length} clean

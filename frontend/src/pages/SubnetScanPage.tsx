@@ -495,6 +495,7 @@ export default function SubnetScanPage() {
                         <th className={`${TH_CLS} w-44`}>Provider / Org</th>
                         <th className={`${TH_CLS} w-24`}>ASN</th>
                         <th className={`${TH_CLS} w-20`}>Country</th>
+                        <th className={`${TH_CLS} w-16`}>Score</th>
                         <th className={TH_CLS}>Listed On</th>
                         <th className={`${TH_CLS} w-16`}>Hits</th>
                         <th className={`${TH_CLS} w-28`}>Action</th>
@@ -520,6 +521,16 @@ export default function SubnetScanPage() {
                               <span title={r.country_name || ''}>{r.country_code}</span>
                             ) : '—'}
                             {r.is_hosting && <span className="ml-1.5 text-[9px] font-bold bg-subtle border border-border-base text-text-muted px-1 py-0.5 rounded uppercase">DC</span>}
+                          </td>
+                          <td className={TD_CLS}>
+                            {(() => {
+                              const s = Math.max(0, Math.min(100, 80 - Math.min(r.hits.length * 20, 60) - (r.is_hosting ? 10 : 0) - 5));
+                              return (
+                                <span className={`text-[11px] font-semibold ${s >= 80 ? 'text-success' : s >= 50 ? 'text-warning' : 'text-danger'}`}>
+                                  {s}/100
+                                </span>
+                              );
+                            })()}
                           </td>
                           <td className={TD_CLS}>
                             {r.hits.length > 0 ? (
