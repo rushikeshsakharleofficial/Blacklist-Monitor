@@ -73,7 +73,7 @@ def monitor_target_task(self, target_id: int):
             from .checker import lookup_asn_number
             target.asn = lookup_asn_number(target.address.split('/')[0])
 
-        if target.target_type == 'domain' and not target.registrar:
+        if target.target_type == 'domain' and (not target.registrar or target.has_dkim is None):
             from .checker import lookup_domain_details
             dom = lookup_domain_details(target.address)
             target.nameservers = dom.get("nameservers")
@@ -82,23 +82,29 @@ def monitor_target_task(self, target_id: int):
             target.has_spf = dom.get("has_spf")
             target.has_dmarc = dom.get("has_dmarc")
             target.has_mx = dom.get("has_mx")
+            target.has_dkim = dom.get("has_dkim")
+            target.dmarc_policy = dom.get("dmarc_policy")
             # Update reputation score on every check (DNSBL hits affect it)
         if target.target_type == 'domain':
             base = 50  # neutral start
-            # Email authentication — most important signals
-            if target.has_spf: base += 15
-            if target.has_dmarc: base += 15
-            if target.has_mx: base += 5
+            # Email authentication — critical (2026: DKIM+SPF+DMARC all required for bulk)
+            if target.has_spf:   base += 12
+            if target.has_dkim:  base += 12   # equally important as SPF
+            if target.has_dmarc: base += 8    # policy exists
+            # DMARC enforcement bonus (p=none = monitoring only, p=quarantine/reject = protected)
+            if target.dmarc_policy in ('quarantine', 'reject'):
+                base += 5
+            if target.has_mx:    base += 5    # receives mail = legitimate domain
             # Domain age — critical for warmup assessment
             age = target.domain_age_days or 0
-            if age > 1825:   base += 15   # 5+ years: very established
-            elif age > 730:  base += 10   # 2+ years: established
-            elif age > 365:  base += 5    # 1+ year: decent
-            elif 0 < age <= 30:  base -= 25  # <30 days: very suspicious
-            elif 0 < age <= 90:  base -= 10  # 1-3 months: concerning
+            if age > 1825:      base += 12   # 5+ years: very established
+            elif age > 730:     base += 8    # 2+ years: established
+            elif age > 365:     base += 4    # 1+ year: decent
+            elif 0 < age <= 30: base -= 25   # <30 days: very suspicious
+            elif 0 < age <= 90: base -= 12   # 1-3 months: concerning
             # 90-365 days: neutral (0)
-            # Blacklist penalty
-            if target.is_blacklisted: base -= 35
+            # Blacklist penalty — domain in spam = severe
+            if target.is_blacklisted: base -= 40
             target.reputation_score = max(0, min(100, base))
 
         # Compute reputation score for all target types

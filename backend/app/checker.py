@@ -414,7 +414,8 @@ def lookup_domain_details(domain: str) -> dict:
     import json as _json
     empty = {
         "nameservers": None, "registrar": None, "domain_age_days": None,
-        "has_spf": None, "has_dmarc": None, "has_mx": None, "reputation_score": None,
+        "has_spf": None, "has_dmarc": None, "has_mx": None, "has_dkim": False,
+        "dmarc_policy": None, "reputation_score": None,
     }
     domain = domain.lower().strip().rstrip(".")
     if not domain or "." not in domain:
@@ -462,15 +463,43 @@ def lookup_domain_details(domain: str) -> dict:
     # -- 4. DMARC (_dmarc.domain TXT) -----------------------------------
     try:
         dmarc_answers = resolver.resolve(f"_dmarc.{domain}", "TXT", lifetime=5)
-        dmarc_found = any(
-            "v=dmarc1" in "".join(str(r) for r in rdata.strings).lower()
-            for rdata in dmarc_answers
-        )
+        dmarc_txt = ""
+        dmarc_found = False
+        for rdata in dmarc_answers:
+            txt = b''.join(rdata.strings).decode('utf-8', errors='ignore')
+            if "v=dmarc1" in txt.lower():
+                dmarc_found = True
+                dmarc_txt = txt
+                break
         result["has_dmarc"] = dmarc_found
+        # Parse policy from DMARC record
+        dmarc_policy = None
+        import re as _re
+        pm = _re.search(r'p=(\w+)', dmarc_txt)
+        if pm:
+            dmarc_policy = pm.group(1).lower()  # 'none', 'quarantine', 'reject'
+        result["dmarc_policy"] = dmarc_policy
     except Exception:
         result["has_dmarc"] = False
 
-    # -- 5. WHOIS - registrar + domain age -------------------------------
+    # -- 5. DKIM check — try common selectors ---------------------------
+    DKIM_SELECTORS = ['google', 'default', 'mail', 'dkim', 'selector1', 'selector2', 'k1', 's1', 's2', 'smtp', 'mandrill', 'mailjet']
+    has_dkim = False
+    for sel in DKIM_SELECTORS:
+        try:
+            dkim_answers = dns.resolver.resolve(f"{sel}._domainkey.{domain}", 'TXT', lifetime=3)
+            for rdata in dkim_answers:
+                txt = b''.join(rdata.strings).decode('utf-8', errors='ignore')
+                if 'p=' in txt and 'v=DKIM1' in txt:
+                    has_dkim = True
+                    break
+        except Exception:
+            pass
+        if has_dkim:
+            break
+    result["has_dkim"] = has_dkim
+
+    # -- 6. WHOIS - registrar + domain age -------------------------------
     try:
         import whois as _whois
         import datetime as _datetime
@@ -490,7 +519,7 @@ def lookup_domain_details(domain: str) -> dict:
     except Exception:
         pass
 
-    # -- 6. Reputation score (0-100) ------------------------------------
+    # -- 7. Reputation score (0-100) ------------------------------------
     # Start at 70 (unknown domain, neutral). Adjust based on signals:
     score = 70
     if result["has_spf"]:

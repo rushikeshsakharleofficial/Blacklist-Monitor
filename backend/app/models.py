@@ -89,6 +89,8 @@ class Target(Base):
     has_spf = Column(Boolean, nullable=True)
     has_dmarc = Column(Boolean, nullable=True)
     has_mx = Column(Boolean, nullable=True)
+    has_dkim = Column(Boolean, nullable=True)
+    dmarc_policy = Column(String(20), nullable=True)
     reputation_score = Column(Integer, nullable=True)  # 0-100
     history = relationship("CheckHistory", back_populates="target")
 

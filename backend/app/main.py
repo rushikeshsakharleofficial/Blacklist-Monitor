@@ -128,7 +128,9 @@ class TargetResponse(BaseModel):
     registrar: Optional[str] = None
     domain_age_days: Optional[int] = None
     has_spf: Optional[bool] = None
+    has_dkim: Optional[bool] = None
     has_dmarc: Optional[bool] = None
+    dmarc_policy: Optional[str] = None
     has_mx: Optional[bool] = None
     reputation_score: Optional[int] = None
 
