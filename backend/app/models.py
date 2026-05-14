@@ -75,6 +75,7 @@ class Target(Base):
     last_checked = Column(DateTime, default=None, index=True)
     created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc), index=True)
     org = Column(String, nullable=True)
+    asn = Column(String(20), nullable=True)
     history = relationship("CheckHistory", back_populates="target")
 
     __table_args__ = (
