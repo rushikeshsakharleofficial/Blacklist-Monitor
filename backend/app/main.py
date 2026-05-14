@@ -141,6 +141,10 @@ class BulkDeleteRequest(BaseModel):
     ids: list[int]
 
 
+class BulkAddRequest(BaseModel):
+    values: list[str]
+
+
 def infer_target_type(value: str) -> str:
     if "/" in value:
         try:
@@ -357,6 +361,64 @@ def add_target(request: Request, target: TargetCreate, db: Session = Depends(get
     db.refresh(new_target)
     tasks.monitor_target_task.delay(new_target.id)
     return new_target
+
+
+@app.post("/targets/bulk-add", dependencies=[Depends(require("targets:write"))], response_model=dict)
+@limiter.limit("5/minute")
+def bulk_add_targets(request: Request, body: BulkAddRequest, db: Session = Depends(get_db)):
+    """Bulk add multiple targets (IPs, domains, subnets). Returns per-item results."""
+    added = []
+    skipped = []
+    errors = []
+
+    for raw in body.values:
+        value = raw.strip().lower()
+        if not value:
+            continue
+        try:
+            existing = db.query(models.Target).filter(models.Target.address == value).first()
+            if existing:
+                skipped.append({"value": value, "reason": "already exists"})
+                continue
+
+            target_type = infer_target_type(value)
+
+            if target_type == "ip":
+                addr = ipaddress.ip_address(value)
+                if addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved or addr.is_unspecified:
+                    errors.append({"value": value, "reason": "private/reserved IP"})
+                    continue
+
+            if target_type == "subnet":
+                net = ipaddress.ip_network(value, strict=False)
+                if net.version != 4:
+                    errors.append({"value": value, "reason": "only IPv4 subnets supported"})
+                    continue
+                if net.is_private or net.is_loopback or net.is_link_local or net.is_reserved:
+                    errors.append({"value": value, "reason": "private/reserved subnet"})
+                    continue
+                value = str(net)
+
+            from .checker import lookup_org_for_target
+            org = lookup_org_for_target(value, target_type)
+            new_target = models.Target(address=value, target_type=target_type, org=org)
+            db.add(new_target)
+            db.commit()
+            db.refresh(new_target)
+            tasks.monitor_target_task.delay(new_target.id)
+            added.append({"value": value, "id": new_target.id, "type": target_type})
+        except Exception as e:
+            db.rollback()
+            errors.append({"value": value, "reason": str(e)})
+
+    return {
+        "added": len(added),
+        "skipped": len(skipped),
+        "errors": len(errors),
+        "added_items": added,
+        "skipped_items": skipped,
+        "error_items": errors,
+    }
 
 
 @app.get("/targets/", dependencies=[Depends(require("targets:read"))], response_model=list[TargetResponse])
