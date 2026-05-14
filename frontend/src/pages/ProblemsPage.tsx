@@ -68,7 +68,7 @@ export default function ProblemsPage() {
 
   const exportCSV = () => {
     const q = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
-    const HEADER = ['IP / Domain', 'Type', 'DNSBL Hits', 'Hit Count', 'Total Checked', 'Last Checked'];
+    const HEADER = ['IP / Domain', 'Type', 'Blacklisted On (DNSBL Zones)', 'Hit Count', 'Total Checked', 'Last Checked'];
 
     // Group by /24 subnet
     const subnetMap: Record<string, ListedTarget[]> = {};
@@ -95,9 +95,13 @@ export default function ProblemsPage() {
         .sort((a, b) => a.address.localeCompare(b.address, undefined, { numeric: true }))
         .forEach(t => {
           lines.push([
-            t.address, t.target_type, t.hits.join('; '),
-            t.hits.length, t.total_checked, t.last_checked ?? '',
-          ].map(q).join(','));
+            q(t.address),
+            q(t.target_type),
+            q(t.hits.join('\n')),   // one zone per line — renders as multi-line cell in Excel
+            q(t.hits.length),
+            q(t.total_checked),
+            q(t.last_checked ?? ''),
+          ].join(','));
         });
       lines.push(''); // blank row between subnets
     });
