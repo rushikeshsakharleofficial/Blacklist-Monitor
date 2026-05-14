@@ -13,6 +13,7 @@ import asyncio
 from fastapi import FastAPI, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
+from sqlalchemy import func as _func, Integer as _Integer
 from pydantic import BaseModel
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
@@ -513,6 +514,160 @@ def update_scan_session(session_id: int, body: dict, db: Session = Depends(get_d
     db.commit()
     return {"ok": True}
 
+
+# ---------------------------------------------------------------------------
+# Reports & Analytics endpoints
+# ---------------------------------------------------------------------------
+
+@app.get("/reports/summary", dependencies=[Depends(require("targets:read"))])
+def reports_summary(db: Session = Depends(get_db)):
+    total = db.query(_func.count(models.Target.id)).scalar() or 0
+    listed = db.query(_func.count(models.Target.id)).filter(models.Target.is_blacklisted == True).scalar() or 0
+    thirty_ago = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=30)
+    checks_30d = db.query(_func.count(models.CheckHistory.id)).filter(
+        models.CheckHistory.checked_at >= thirty_ago
+    ).scalar() or 0
+    listing_events = db.query(_func.count(models.AlertLog.id)).filter(
+        models.AlertLog.to_status == "listed",
+        models.AlertLog.created_at >= thirty_ago,
+    ).scalar() or 0
+    return {
+        "total_targets": total,
+        "listed_now": listed,
+        "clean_now": total - listed,
+        "pct_listed": round(listed / total * 100, 1) if total else 0,
+        "checks_30d": checks_30d,
+        "avg_checks_per_day": round(checks_30d / 30, 1),
+        "listing_events_30d": listing_events,
+    }
+
+
+@app.get("/reports/subnet-breakdown", dependencies=[Depends(require("targets:read"))])
+def reports_subnet_breakdown(db: Session = Depends(get_db)):
+    rows = db.query(models.Target.address).filter(
+        models.Target.is_blacklisted == True,
+        models.Target.target_type == "ip",
+    ).all()
+    subnet_map: dict = {}
+    for (addr,) in rows:
+        parts = addr.split(".")
+        if len(parts) == 4:
+            key = f"{parts[0]}.{parts[1]}.{parts[2]}.0/24"
+            subnet_map[key] = subnet_map.get(key, 0) + 1
+    return sorted(
+        [{"subnet": k, "listed": v} for k, v in subnet_map.items()],
+        key=lambda x: -x["listed"],
+    )[:50]
+
+
+@app.get("/reports/dnsbl-breakdown", dependencies=[Depends(require("targets:read"))])
+def reports_dnsbl_breakdown(db: Session = Depends(get_db)):
+    listed_ids = [r[0] for r in db.query(models.Target.id).filter(
+        models.Target.is_blacklisted == True
+    ).limit(2000).all()]
+
+    zone_counts: dict = {}
+    BATCH = 200
+    for i in range(0, len(listed_ids), BATCH):
+        batch = listed_ids[i:i+BATCH]
+        sub = (
+            db.query(
+                models.CheckHistory.target_id,
+                _func.max(models.CheckHistory.checked_at).label("max_at"),
+            )
+            .filter(models.CheckHistory.target_id.in_(batch))
+            .group_by(models.CheckHistory.target_id)
+            .subquery()
+        )
+        rows = (
+            db.query(models.CheckHistory.details)
+            .join(sub, (models.CheckHistory.target_id == sub.c.target_id) &
+                       (models.CheckHistory.checked_at == sub.c.max_at))
+            .all()
+        )
+        for (details,) in rows:
+            if not details:
+                continue
+            try:
+                data = json.loads(details)
+                hits = data.get("hits", [])
+                for hit in hits:
+                    if isinstance(hit, str):
+                        zone_counts[hit] = zone_counts.get(hit, 0) + 1
+                    elif isinstance(hit, dict):
+                        for z in hit.get("zones", []):
+                            zone_counts[z] = zone_counts.get(z, 0) + 1
+            except Exception:
+                pass
+
+    return sorted(
+        [{"zone": k, "hits": v} for k, v in zone_counts.items()],
+        key=lambda x: -x["hits"],
+    )[:20]
+
+
+@app.get("/reports/daily-checks", dependencies=[Depends(require("targets:read"))])
+def reports_daily_checks(db: Session = Depends(get_db)):
+    thirty_ago = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=30)
+    rows = (
+        db.query(
+            _func.date(models.CheckHistory.checked_at).label("day"),
+            _func.count(models.CheckHistory.id).label("checks"),
+            _func.sum(
+                _func.cast(models.CheckHistory.status, _Integer)
+            ).label("listed"),
+        )
+        .filter(models.CheckHistory.checked_at >= thirty_ago)
+        .group_by(_func.date(models.CheckHistory.checked_at))
+        .order_by(_func.date(models.CheckHistory.checked_at))
+        .all()
+    )
+    return [{"day": str(r.day), "checks": r.checks, "listed": int(r.listed or 0)} for r in rows]
+
+
+@app.get("/reports/listing-events", dependencies=[Depends(require("targets:read"))])
+def reports_listing_events(db: Session = Depends(get_db)):
+    events = (
+        db.query(models.AlertLog)
+        .filter(models.AlertLog.to_status == "listed")
+        .order_by(models.AlertLog.created_at.desc())
+        .limit(100)
+        .all()
+    )
+    return [
+        {
+            "address": e.target_address,
+            "from_status": e.from_status,
+            "to_status": e.to_status,
+            "channels": e.channels,
+            "at": e.created_at.isoformat() if e.created_at else None,
+        }
+        for e in events
+    ]
+
+
+@app.get("/reports/export-csv", dependencies=[Depends(require("targets:read"))])
+def reports_export_csv(db: Session = Depends(get_db)):
+    from fastapi.responses import StreamingResponse
+    import io, csv
+    listed = db.query(models.Target).filter(models.Target.is_blacklisted == True).all()
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["id", "address", "type", "org", "last_checked"])
+    for t in listed:
+        writer.writerow([
+            t.id, t.address, t.target_type, t.org or "",
+            t.last_checked.isoformat() if t.last_checked else "",
+        ])
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=blacklisted_ips.csv"},
+    )
+
+
+# ---------------------------------------------------------------------------
 
 @app.post("/targets/", dependencies=[Depends(require("targets:write"))], response_model=TargetResponse)
 @limiter.limit("5/minute")
