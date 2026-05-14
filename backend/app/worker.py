@@ -12,6 +12,9 @@ celery_app.conf.update(
     enable_utc=True,
     task_soft_time_limit=120,
     task_time_limit=180,
+    task_routes={
+        'app.tasks.scan_subnet_task': {'queue': 'scan'},
+    },
     beat_schedule={
         'monitor-all-targets-every-30-minutes': {
             'task': 'app.tasks.monitor_all_targets_task',

@@ -26,19 +26,18 @@ function PermissionGrid({
     <div className="space-y-3">
       {permGroups.map(({ label, permissions: perms }) => (
         <div key={label}>
-          <div className="text-[10px] font-bold uppercase tracking-widest text-muted mb-1">{label}</div>
+          <div className="text-[10px] font-semibold uppercase tracking-widest text-text-muted mb-1.5">{label}</div>
           <div className="flex flex-wrap gap-1.5">
             {perms.map(p => {
               const checked = selected.has(p);
               return (
                 <button key={p} type="button" disabled={disabled}
                   onClick={() => toggle(p)}
-                  className={`px-2 py-1 text-[10px] font-bold uppercase border transition-colors ${
+                  className={`px-2.5 py-1 text-xs font-medium rounded-md border transition-colors ${
                     checked
-                      ? 'bg-[#1e3a5f] text-[#8ab4c8] border-[#2a5580]'
-                      : 'bg-white text-muted border-panel-border hover:border-[#336699]'
-                  } disabled:opacity-50 disabled:cursor-not-allowed`}
-                  style={{ borderRadius: 2 }}>
+                      ? 'bg-accent-subtle text-accent border-accent/30'
+                      : 'bg-surface text-text-sec border-border-base hover:border-accent/50'
+                  } disabled:opacity-50 disabled:cursor-not-allowed`}>
                   {permLabels[p] ?? p}
                 </button>
               );
@@ -74,45 +73,41 @@ function RoleForm({ allPerms, permLabels, permGroups, initial, onSave, onCancel 
   };
 
   return (
-    <div className="border border-panel-border mb-4">
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-panel-border" style={{ background: '#2c3e50' }}>
-        <Plus size={13} className="text-[#8ab4c8]" />
-        <span className="text-white text-[11px] font-bold uppercase tracking-wider">
+    <div className="bg-surface border border-border-base rounded-xl overflow-hidden mb-4">
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-border-base">
+        <Plus size={15} className="text-accent" />
+        <span className="text-sm font-semibold text-text-base">
           {initial ? `Edit Role: ${initial.name}` : 'Create New Role'}
         </span>
       </div>
-      <form onSubmit={submit} className="bg-white p-4 space-y-3">
-        <div className="grid grid-cols-2 gap-3">
+      <form onSubmit={submit} className="p-4 space-y-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wide text-foreground mb-1">Role Name</label>
+            <label className="text-xs font-semibold text-text-sec uppercase tracking-wide mb-1.5 block">Role Name</label>
             <input required value={name} onChange={e => setName(e.target.value)}
               placeholder="e.g. read_only_analyst"
-              className="w-full px-2.5 py-1.5 text-xs border border-panel-border font-mono focus:outline-none focus:border-primary"
-              style={{ borderRadius: 2 }} />
+              className="border border-border-base rounded-lg px-3 py-2 text-sm bg-surface text-text-base font-mono focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent w-full transition-colors" />
           </div>
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wide text-foreground mb-1">Description</label>
+            <label className="text-xs font-semibold text-text-sec uppercase tracking-wide mb-1.5 block">Description</label>
             <input value={desc} onChange={e => setDesc(e.target.value)}
-              className="w-full px-2.5 py-1.5 text-xs border border-panel-border focus:outline-none focus:border-primary"
-              style={{ borderRadius: 2 }} />
+              className="border border-border-base rounded-lg px-3 py-2 text-sm bg-surface text-text-base focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent w-full transition-colors" />
           </div>
         </div>
         <div>
-          <label className="block text-[10px] font-bold uppercase tracking-wide text-foreground mb-2">Permissions</label>
+          <label className="text-xs font-semibold text-text-sec uppercase tracking-wide mb-2 block">Permissions</label>
           <PermissionGrid allPerms={allPerms} permLabels={permLabels} permGroups={permGroups}
             selected={selected} onChange={setSelected} />
         </div>
-        {err && <div className="text-danger text-xs">{err}</div>}
+        {err && <div className="text-danger text-sm">{err}</div>}
         <div className="flex gap-2">
           <button type="submit" disabled={loading}
-            className="flex items-center gap-1 px-4 py-1.5 text-xs font-bold uppercase text-white border border-[#2a5580] disabled:opacity-50"
-            style={{ background: '#336699', borderRadius: 2 }}>
-            <Check size={12} /> {loading ? 'Saving…' : 'Save Role'}
+            className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg bg-accent text-white hover:bg-accent-hover transition-colors disabled:opacity-50">
+            <Check size={14} /> {loading ? 'Saving…' : 'Save Role'}
           </button>
           <button type="button" onClick={onCancel}
-            className="flex items-center gap-1 px-4 py-1.5 text-xs font-bold uppercase border border-panel-border text-foreground"
-            style={{ borderRadius: 2 }}>
-            <X size={12} /> Cancel
+            className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg border border-border-base text-text-base hover:bg-subtle transition-colors">
+            <X size={14} /> Cancel
           </button>
         </div>
       </form>
@@ -163,10 +158,6 @@ export default function RolesPage() {
     load();
   };
 
-  const deleteRole = async (role: Role) => {
-    setConfirmDelete(role);
-  };
-
   const handleConfirmDelete = async () => {
     if (!confirmDelete) return;
     const role = confirmDelete;
@@ -191,22 +182,21 @@ export default function RolesPage() {
       )}
       {errorMsg && <ErrorDialog message={errorMsg} onClose={() => setErrorMsg(null)} />}
 
-      <header className="flex justify-between items-center mb-4 border-b border-panel-border pb-2">
+      <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
         <div>
-          <h1 className="text-base font-bold text-foreground uppercase tracking-wide">Role Management</h1>
-          <p className="text-muted text-[11px] mt-0.5">Define permission sets for user access control</p>
+          <h1 className="text-lg font-semibold text-text-base">Role Management</h1>
+          <p className="text-sm text-text-sec mt-0.5">Define permission sets for user access control</p>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={load}
-            className="flex items-center gap-1 px-3 py-1.5 text-xs border border-panel-border bg-white hover:bg-row-alt">
-            <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
+            className="px-3 py-1.5 text-sm font-medium rounded-lg border border-border-base text-text-base hover:bg-subtle transition-colors flex items-center gap-1.5">
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
             Refresh
           </button>
           {canManage && (
             <button onClick={() => { setShowCreate(v => !v); setEditRole(null); }}
-              className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold uppercase text-white border border-[#2a5580]"
-              style={{ background: '#336699', borderRadius: 2 }}>
-              <Plus size={12} />
+              className="px-3 py-1.5 text-sm font-medium rounded-lg bg-accent text-white hover:bg-accent-hover transition-colors flex items-center gap-1.5">
+              <Plus size={14} />
               New Role
             </button>
           )}
@@ -222,53 +212,52 @@ export default function RolesPage() {
           initial={editRole} onSave={updateRole} onCancel={() => setEditRole(null)} />
       )}
 
-      <div className="border border-panel-border">
-        <div className="flex items-center gap-2 px-3 py-2 border-b border-panel-border" style={{ background: '#2c3e50' }}>
-          <ShieldCheck size={13} className="text-[#8ab4c8]" />
-          <span className="text-white text-[11px] font-bold uppercase tracking-wider">All Roles</span>
-          <span className="ml-auto text-[#8ab4c8] text-[10px] font-bold">{roles.length} DEFINED</span>
+      <div className="bg-surface border border-border-base rounded-xl overflow-hidden">
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-border-base">
+          <ShieldCheck size={15} className="text-accent" />
+          <span className="text-sm font-semibold text-text-base">All Roles</span>
+          <span className="ml-auto text-text-sec text-xs font-semibold">{roles.length} defined</span>
         </div>
         {loading ? (
-          <div className="bg-white px-4 py-8 text-center text-muted text-xs">Loading…</div>
+          <div className="px-4 py-10 text-center text-text-sec text-sm">Loading…</div>
         ) : (
           <div>
             {roles.map(role => (
-              <div key={role.id} className="border-t border-panel-border">
+              <div key={role.id} className="border-t border-border-base">
                 <div
-                  className="flex items-center gap-3 px-3 py-2.5 bg-white hover:bg-row-alt cursor-pointer"
+                  className="flex items-center gap-3 px-4 py-3 hover:bg-subtle cursor-pointer transition-colors"
                   onClick={() => setExpandedId(expandedId === role.id ? null : role.id)}>
-                  <ShieldCheck size={13} className="text-muted shrink-0" />
+                  <ShieldCheck size={15} className="text-text-sec shrink-0" />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-foreground uppercase">{role.name}</span>
+                      <span className="text-sm font-semibold text-text-base">{role.name}</span>
                       {role.is_builtin && (
-                        <span className="text-[9px] font-bold px-1.5 py-0.5 bg-[#f39c12] text-white uppercase tracking-wide" style={{ borderRadius: 2 }}>Built-in</span>
+                        <span className="text-[10px] font-semibold px-1.5 py-0.5 bg-warning-bg text-warning rounded uppercase">Built-in</span>
                       )}
                     </div>
-                    {role.description && <div className="text-[10px] text-muted mt-0.5">{role.description}</div>}
+                    {role.description && <div className="text-xs text-text-sec mt-0.5">{role.description}</div>}
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
-                    <span className="text-[10px] text-muted">{role.permissions.length} perms · {role.user_count} users</span>
+                    <span className="text-xs text-text-sec">{role.permissions.length} perms · {role.user_count} users</span>
                     {canManage && !role.is_builtin && (
                       <div className="flex gap-1" onClick={e => e.stopPropagation()}>
                         <button onClick={() => { setEditRole(role); setShowCreate(false); }}
-                          className="p-1 text-muted hover:text-foreground border border-panel-border bg-white"
-                          title="Edit role" style={{ borderRadius: 2 }}>
-                          <Edit2 size={11} />
+                          className="p-1.5 text-text-sec hover:text-text-base border border-border-base rounded-md bg-surface hover:bg-subtle transition-colors"
+                          title="Edit role">
+                          <Edit2 size={12} />
                         </button>
-                        <button onClick={() => deleteRole(role)}
+                        <button onClick={() => setConfirmDelete(role)}
                           disabled={role.user_count > 0}
-                          className="p-1 text-muted hover:text-danger border border-panel-border bg-white disabled:opacity-30"
-                          title={role.user_count > 0 ? 'Reassign users first' : 'Delete role'}
-                          style={{ borderRadius: 2 }}>
-                          <Trash2 size={11} />
+                          className="p-1.5 text-text-sec hover:text-danger border border-border-base rounded-md bg-surface hover:bg-subtle disabled:opacity-30 transition-colors"
+                          title={role.user_count > 0 ? 'Reassign users first' : 'Delete role'}>
+                          <Trash2 size={12} />
                         </button>
                       </div>
                     )}
                   </div>
                 </div>
                 {expandedId === role.id && (
-                  <div className="px-4 py-3 bg-row-alt border-t border-panel-border">
+                  <div className="px-4 py-4 bg-subtle border-t border-border-base">
                     <PermissionGrid allPerms={allPerms} permLabels={permLabels} permGroups={permGroups}
                       selected={new Set(role.permissions)} onChange={() => {}} disabled />
                   </div>

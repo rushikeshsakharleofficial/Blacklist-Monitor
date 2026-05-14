@@ -1,23 +1,83 @@
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  color-scheme: light;
+  /* Light mode (default) */
+  --bg-app: #f7f7f8;
+  --bg-surface: #ffffff;
+  --bg-subtle: #f0f0f4;
+  --bg-hover: #eaeaf0;
+  --border: #e2e2ea;
+  --border-strong: #c8c8d8;
+  --text-primary: #111128;
+  --text-secondary: #6b6b8d;
+  --text-muted: #9898b8;
+  --accent: #5e6ad2;
+  --accent-hover: #4f5bbf;
+  --accent-subtle: #eef0fd;
+  --success: #0d9488;
+  --success-bg: #f0fdfb;
+  --danger: #e11d48;
+  --danger-bg: #fff0f3;
+  --warning: #c2821a;
+  --warning-bg: #fffbeb;
+  --sidebar-bg: #ffffff;
+  --sidebar-border: #e2e2ea;
+  --sidebar-text: #6b6b8d;
+  --sidebar-active-bg: #eef0fd;
+  --sidebar-active-text: #5e6ad2;
+  --sidebar-hover-bg: #f4f4f8;
+}
+
+html.dark {
+  --bg-app: #0c0c10;
+  --bg-surface: #13131a;
+  --bg-subtle: #1a1a24;
+  --bg-hover: #22222e;
+  --border: #2a2a3a;
+  --border-strong: #3a3a52;
+  --text-primary: #ededf7;
+  --text-secondary: #8888aa;
+  --text-muted: #5a5a7a;
+  --accent: #6172e0;
+  --accent-hover: #7080e8;
+  --accent-subtle: #1e2050;
+  --success: #2dd4bf;
+  --success-bg: #0a2420;
+  --danger: #fb7185;
+  --danger-bg: #280818;
+  --warning: #fbbf24;
+  --warning-bg: #25180a;
+  --sidebar-bg: #13131a;
+  --sidebar-border: #2a2a3a;
+  --sidebar-text: #8888aa;
+  --sidebar-active-bg: #1e2050;
+  --sidebar-active-text: #7080e8;
+  --sidebar-hover-bg: #1a1a24;
 }
 
 body {
-  @apply bg-background text-foreground antialiased;
-  font-family: 'IBM Plex Sans', system-ui, Avenir, Helvetica, Arial, sans-serif;
+  background-color: var(--bg-app);
+  color: var(--text-primary);
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* Smooth spin — overrides tailwind's stepped animation */
 @keyframes spin-smooth {
   from { transform: rotate(0deg); }
-  to   { transform: rotate(360deg); }
+  to { transform: rotate(360deg); }
 }
 .animate-spin {
   animation: spin-smooth 0.8s linear infinite !important;
+}
+
+/* Mobile sidebar overlay */
+.sidebar-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  z-index: 39;
 }

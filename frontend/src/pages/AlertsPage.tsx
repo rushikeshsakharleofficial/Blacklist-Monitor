@@ -33,13 +33,13 @@ function fmt(iso: string | null) {
 }
 
 function StatusChange({ from, to }: { from: string; to: string }) {
-  const fromBg = from === 'listed' ? '#e74c3c' : from === 'clean' ? '#27ae60' : '#7f8c8d';
-  const toBg   = to   === 'listed' ? '#e74c3c' : '#27ae60';
+  const fromCls = from === 'listed' ? 'bg-danger-bg text-danger' : from === 'clean' ? 'bg-success-bg text-success' : 'bg-subtle text-text-sec';
+  const toCls   = to === 'listed' ? 'bg-danger-bg text-danger' : 'bg-success-bg text-success';
   return (
     <span className="flex items-center gap-1">
-      <span className="text-[10px] font-bold px-1.5 py-0.5 text-white uppercase" style={{ background: fromBg, borderRadius: 2 }}>{from}</span>
-      <span className="text-muted text-[10px]">→</span>
-      <span className="text-[10px] font-bold px-1.5 py-0.5 text-white uppercase" style={{ background: toBg, borderRadius: 2 }}>{to}</span>
+      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full uppercase ${fromCls}`}>{from}</span>
+      <span className="text-text-muted text-xs">→</span>
+      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full uppercase ${toCls}`}>{to}</span>
     </span>
   );
 }
@@ -145,54 +145,53 @@ export default function AlertsPage() {
 
   return (
     <div className="space-y-4">
-      <header className="flex justify-between items-center border-b border-panel-border pb-2">
+      <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
         <div>
-          <h1 className="text-base font-bold text-foreground uppercase tracking-wide">Alerts &amp; Notifications</h1>
-          <p className="text-muted text-[11px] mt-0.5">Alert history, channel configuration and message templates</p>
+          <h1 className="text-lg font-semibold text-text-base">Alerts &amp; Notifications</h1>
+          <p className="text-sm text-text-sec mt-0.5">Alert history, channel configuration and message templates</p>
         </div>
-        <button onClick={load} className="flex items-center gap-1 px-3 py-1.5 text-xs border border-panel-border bg-white hover:bg-row-alt">
-          <RefreshCw size={12} className={loading ? 'animate-spin' : ''} /> Refresh
+        <button onClick={load}
+          className="px-3 py-1.5 text-sm font-medium rounded-lg border border-border-base text-text-base hover:bg-subtle transition-colors flex items-center gap-1.5">
+          <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Refresh
         </button>
       </header>
 
       {/* Channel status cards */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {(['slack', 'email'] as const).map(ch => {
           const configured = ch === 'slack' ? channels?.slack.configured : channels?.email.configured;
           const result = testResults[ch];
           return (
-            <div key={ch} className="border border-panel-border">
-              <div className="flex items-center gap-2 px-3 py-2 border-b border-panel-border" style={{ background: '#2c3e50' }}>
-                <Bell size={13} className="text-[#8ab4c8]" />
-                <span className="text-white text-[11px] font-bold uppercase tracking-wider">{ch === 'slack' ? 'Slack' : 'Email'} Alerts</span>
-                <span className="ml-auto">{configured ? <CheckCircle size={13} className="text-success" /> : <XCircle size={13} className="text-danger" />}</span>
+            <div key={ch} className="bg-surface border border-border-base rounded-xl overflow-hidden">
+              <div className="flex items-center gap-2 px-4 py-3 border-b border-border-base">
+                <Bell size={15} className="text-accent" />
+                <span className="text-sm font-semibold text-text-base">{ch === 'slack' ? 'Slack' : 'Email'} Alerts</span>
+                <span className="ml-auto">{configured ? <CheckCircle size={15} className="text-success" /> : <XCircle size={15} className="text-danger" />}</span>
               </div>
-              <div className="bg-white p-4 space-y-2">
+              <div className="p-4 space-y-3">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-[10px] font-bold px-2 py-0.5 text-white uppercase"
-                    style={{ background: configured ? '#27ae60' : '#7f8c8d', borderRadius: 2 }}>
+                  <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full uppercase ${configured ? 'bg-success-bg text-success' : 'bg-subtle text-text-sec'}`}>
                     {configured ? 'Configured' : 'Not Configured'}
                   </span>
                   {ch === 'email' && channels?.email.to && (
-                    <span className="text-[10px] text-muted font-mono">→ {channels.email.to}</span>
+                    <span className="text-xs text-text-sec font-mono">→ {channels.email.to}</span>
                   )}
                 </div>
-                <p className="text-[11px] text-muted">
+                <p className="text-sm text-text-sec">
                   {ch === 'slack'
                     ? 'Set SLACK_WEBHOOK_URL environment variable to enable.'
                     : 'Set SMTP_SERVER, SMTP_USER, SMTP_PASSWORD, ALERT_EMAIL_TO to enable.'}
                 </p>
                 {canConfigure && (
-                  <div className="flex items-center gap-2 flex-wrap pt-1">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <button onClick={() => runTest(ch)} disabled={testing[ch] || !configured}
-                      className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-bold uppercase text-white border border-[#2a5580] disabled:opacity-40"
-                      style={{ background: '#336699', borderRadius: 2 }}>
-                      <Send size={11} className={testing[ch] ? 'animate-pulse' : ''} />
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg bg-accent text-white hover:bg-accent-hover transition-colors disabled:opacity-40">
+                      <Send size={13} className={testing[ch] ? 'animate-pulse' : ''} />
                       {testing[ch] ? 'Sending…' : 'Send Test'}
                     </button>
                     {result && (
-                      <span className={`text-[11px] font-bold flex items-center gap-1 ${result.ok ? 'text-success' : 'text-danger'}`}>
-                        {result.ok ? <CheckCircle size={12} /> : <XCircle size={12} />}
+                      <span className={`text-sm font-medium flex items-center gap-1 ${result.ok ? 'text-success' : 'text-danger'}`}>
+                        {result.ok ? <CheckCircle size={13} /> : <XCircle size={13} />}
                         {result.ok ? 'Sent successfully' : result.error}
                       </span>
                     )}
@@ -206,29 +205,28 @@ export default function AlertsPage() {
 
       {/* Channel config panel */}
       {canConfigure && (
-        <div className="border border-panel-border">
-          <div className="flex items-center gap-2 px-3 py-2 border-b border-panel-border cursor-pointer" style={{ background: '#2c3e50' }}
+        <div className="bg-surface border border-border-base rounded-xl overflow-hidden">
+          <div className="flex items-center gap-2 px-4 py-3 border-b border-border-base cursor-pointer hover:bg-subtle transition-colors"
             onClick={() => setShowCfg(v => !v)}>
-            <Settings size={13} className="text-[#8ab4c8]" />
-            <span className="text-white text-[11px] font-bold uppercase tracking-wider">Channel Configuration</span>
-            <span className="ml-auto text-[#8ab4c8] text-[10px]">{showCfg ? 'Hide ▲' : 'Configure ▼'}</span>
+            <Settings size={15} className="text-accent" />
+            <span className="text-sm font-semibold text-text-base">Channel Configuration</span>
+            <span className="ml-auto text-text-sec text-xs">{showCfg ? 'Hide ▲' : 'Configure ▼'}</span>
           </div>
           {showCfg && (
-            <div className="bg-white p-4 grid grid-cols-2 gap-4">
+            <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Slack */}
               <div>
-                <p className="text-[11px] font-bold uppercase tracking-widest text-muted mb-2">Slack</p>
-                <label className="block text-[10px] font-bold uppercase text-foreground mb-1">Webhook URL</label>
+                <p className="text-xs font-semibold uppercase tracking-widest text-text-sec mb-3">Slack</p>
+                <label className="text-xs font-semibold text-text-sec uppercase tracking-wide mb-1.5 block">Webhook URL</label>
                 <input type="password" value={cfgForm.slack_webhook}
                   onChange={e => setCfgForm(f => ({ ...f, slack_webhook: e.target.value }))}
                   placeholder="https://hooks.slack.com/services/…"
-                  className="w-full px-2.5 py-1.5 text-xs border border-panel-border font-mono focus:outline-none focus:border-primary"
-                  style={{ borderRadius: 2 }} />
-                <p className="text-[10px] text-muted mt-1">Leave blank to use SLACK_WEBHOOK_URL env var. Enter new value to override.</p>
+                  className="border border-border-base rounded-lg px-3 py-2 text-sm bg-surface text-text-base font-mono focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent w-full transition-colors" />
+                <p className="text-xs text-text-muted mt-1">Leave blank to use SLACK_WEBHOOK_URL env var.</p>
               </div>
               {/* Email */}
-              <div className="space-y-2">
-                <p className="text-[11px] font-bold uppercase tracking-widest text-muted mb-1">Email / SMTP</p>
+              <div className="space-y-3">
+                <p className="text-xs font-semibold uppercase tracking-widest text-text-sec">Email / SMTP</p>
                 {[
                   { key: 'smtp_server', label: 'SMTP Server', placeholder: 'smtp.gmail.com', type: 'text' },
                   { key: 'smtp_port',   label: 'Port',        placeholder: '587', type: 'text' },
@@ -237,27 +235,25 @@ export default function AlertsPage() {
                   { key: 'smtp_to',     label: 'Send Alerts To', placeholder: 'alerts@example.com', type: 'text' },
                 ].map(({ key, label, placeholder, type }) => (
                   <div key={key}>
-                    <label className="block text-[10px] font-bold uppercase text-foreground mb-1">{label}</label>
+                    <label className="text-xs font-semibold text-text-sec uppercase tracking-wide mb-1.5 block">{label}</label>
                     <input type={type} value={(cfgForm as any)[key]}
                       onChange={e => setCfgForm(f => ({ ...f, [key]: e.target.value }))}
                       placeholder={placeholder}
-                      className="w-full px-2.5 py-1.5 text-xs border border-panel-border font-mono focus:outline-none focus:border-primary"
-                      style={{ borderRadius: 2 }} />
+                      className="border border-border-base rounded-lg px-3 py-2 text-sm bg-surface text-text-base font-mono focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent w-full transition-colors" />
                   </div>
                 ))}
               </div>
               <div className="col-span-2 flex items-center gap-3">
                 <button onClick={saveCfg} disabled={cfgSaving}
-                  className="flex items-center gap-1 px-4 py-1.5 text-xs font-bold uppercase text-white border border-[#2a5580] disabled:opacity-50"
-                  style={{ background: '#336699', borderRadius: 2 }}>
-                  <Check size={12} /> {cfgSaving ? 'Saving…' : 'Save Configuration'}
+                  className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg bg-accent text-white hover:bg-accent-hover transition-colors disabled:opacity-50">
+                  <Check size={14} /> {cfgSaving ? 'Saving…' : 'Save Configuration'}
                 </button>
                 {cfgMsg && (
-                  <span className={`text-[11px] font-bold ${cfgMsg.includes('success') ? 'text-success' : 'text-danger'}`}>
+                  <span className={`text-sm font-medium ${cfgMsg.includes('success') ? 'text-success' : 'text-danger'}`}>
                     {cfgMsg}
                   </span>
                 )}
-                <span className="text-[10px] text-muted ml-auto">DB settings override env vars. Clear a field to revert to env var.</span>
+                <span className="text-xs text-text-muted ml-auto">DB settings override env vars. Clear a field to revert to env var.</span>
               </div>
             </div>
           )}
@@ -266,64 +262,58 @@ export default function AlertsPage() {
 
       {/* Template editor */}
       {canConfigure && templates && (
-        <div className="border border-panel-border">
-          <div className="flex items-center gap-2 px-3 py-2 border-b border-panel-border" style={{ background: '#2c3e50' }}>
-            <Edit2 size={13} className="text-[#8ab4c8]" />
-            <span className="text-white text-[11px] font-bold uppercase tracking-wider">Message Templates</span>
-            <span className="ml-auto text-[#8ab4c8] text-[10px] font-mono">{templates.variables.join('  ')}</span>
+        <div className="bg-surface border border-border-base rounded-xl overflow-hidden">
+          <div className="flex items-center gap-2 px-4 py-3 border-b border-border-base">
+            <Edit2 size={15} className="text-accent" />
+            <span className="text-sm font-semibold text-text-base">Message Templates</span>
+            <span className="ml-auto text-text-muted text-xs font-mono">{templates.variables.join('  ')}</span>
           </div>
-          <div className="bg-white divide-y divide-panel-border">
+          <div className="divide-y divide-border-base">
             {Object.entries(TEMPLATE_LABELS).map(([key, label]) => {
               const isEditing = editKey === key;
               const isCustom = templates.templates[key] !== templates.defaults[key];
               return (
                 <div key={key}>
-                  <div className="flex items-center gap-2 px-3 py-2 bg-row-alt">
-                    <span className="text-[11px] font-bold text-foreground flex-1">{label}</span>
-                    {isCustom && <span className="text-[9px] font-bold px-1.5 py-0.5 bg-[#f39c12] text-white uppercase" style={{ borderRadius: 2 }}>Custom</span>}
+                  <div className="flex items-center gap-2 px-4 py-2.5 bg-subtle">
+                    <span className="text-sm font-medium text-text-base flex-1">{label}</span>
+                    {isCustom && <span className="text-[10px] font-semibold px-1.5 py-0.5 bg-warning-bg text-warning rounded uppercase">Custom</span>}
                     {!isEditing && (
                       <div className="flex gap-1">
                         <button onClick={() => { setEditKey(key); setEditValue(templates.templates[key]); }}
-                          className="flex items-center gap-1 px-2 py-1 text-[10px] font-bold uppercase border border-panel-border bg-white hover:bg-row-alt"
-                          style={{ borderRadius: 2 }}>
-                          <Edit2 size={10} /> Edit
+                          className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-md border border-border-base bg-surface hover:bg-subtle transition-colors text-text-base">
+                          <Edit2 size={11} /> Edit
                         </button>
                         {isCustom && (
                           <button onClick={() => resetTpl(key)}
-                            className="flex items-center gap-1 px-2 py-1 text-[10px] font-bold uppercase border border-panel-border bg-white hover:bg-row-alt text-muted"
-                            style={{ borderRadius: 2 }}>
-                            <RotateCcw size={10} /> Reset
+                            className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-md border border-border-base bg-surface hover:bg-subtle transition-colors text-text-sec">
+                            <RotateCcw size={11} /> Reset
                           </button>
                         )}
                       </div>
                     )}
                   </div>
                   {isEditing ? (
-                    <div className="px-3 py-3">
+                    <div className="px-4 py-3">
                       <textarea value={editValue} onChange={e => setEditValue(e.target.value)}
                         rows={key.includes('body') ? 14 : 2}
-                        className="w-full px-2.5 py-2 text-[11px] font-mono border border-panel-border focus:outline-none focus:border-primary resize-y"
-                        style={{ borderRadius: 2 }} />
+                        className="border border-border-base rounded-lg px-3 py-2 text-xs font-mono bg-surface text-text-base focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent w-full resize-y transition-colors" />
                       <div className="flex gap-2 mt-2">
                         <button onClick={saveEdit} disabled={saving}
-                          className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-bold uppercase text-white border border-[#2a5580] disabled:opacity-50"
-                          style={{ background: '#336699', borderRadius: 2 }}>
-                          <Check size={11} /> {saving ? 'Saving…' : 'Save'}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg bg-accent text-white hover:bg-accent-hover transition-colors disabled:opacity-50">
+                          <Check size={13} /> {saving ? 'Saving…' : 'Save'}
                         </button>
                         <button onClick={() => setEditKey(null)}
-                          className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-bold uppercase border border-panel-border"
-                          style={{ borderRadius: 2 }}>
-                          <X size={11} /> Cancel
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border border-border-base text-text-base hover:bg-subtle transition-colors">
+                          <X size={13} /> Cancel
                         </button>
                         <button onClick={() => setEditValue(templates.defaults[key])}
-                          className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-bold uppercase border border-panel-border text-muted"
-                          style={{ borderRadius: 2 }}>
-                          <RotateCcw size={11} /> Use Default
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border border-border-base text-text-sec hover:bg-subtle transition-colors">
+                          <RotateCcw size={13} /> Use Default
                         </button>
                       </div>
                     </div>
                   ) : (
-                    <pre className="px-3 py-2 text-[10px] font-mono text-muted overflow-hidden" style={{ maxHeight: 56, WebkitLineClamp: 3 }}>
+                    <pre className="px-4 py-2 text-[10px] font-mono text-text-sec overflow-hidden" style={{ maxHeight: 56, WebkitLineClamp: 3 }}>
                       {templates.templates[key].slice(0, 240)}{templates.templates[key].length > 240 ? '…' : ''}
                     </pre>
                   )}
@@ -335,57 +325,57 @@ export default function AlertsPage() {
       )}
 
       {/* Alert history */}
-      <div className="border border-panel-border">
-        <div className="flex items-center gap-2 px-3 py-2 border-b border-panel-border" style={{ background: '#2c3e50' }}>
-          <Bell size={13} className="text-[#8ab4c8]" />
-          <span className="text-white text-[11px] font-bold uppercase tracking-wider">Alert History</span>
-          <span className="ml-auto text-[#8ab4c8] text-[10px] font-bold">{total} TOTAL</span>
+      <div className="bg-surface border border-border-base rounded-xl overflow-hidden">
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-border-base">
+          <Bell size={15} className="text-accent" />
+          <span className="text-sm font-semibold text-text-base">Alert History</span>
+          <span className="ml-auto text-text-sec text-xs font-semibold">{total} total</span>
         </div>
         {loading ? (
-          <div className="bg-white px-4 py-8 text-center text-muted text-xs">Loading…</div>
+          <div className="px-4 py-10 text-center text-text-sec text-sm">Loading…</div>
         ) : alerts.length === 0 ? (
-          <div className="bg-white px-4 py-8 text-center text-muted text-xs">
+          <div className="px-4 py-10 text-center text-text-sec text-sm">
             No alerts fired yet. Alerts trigger when a monitored asset changes blacklist status.
           </div>
         ) : (
-          <table className="w-full text-xs border-collapse">
+          <table className="w-full text-sm border-collapse">
             <thead>
-              <tr style={{ background: '#2c3e50', color: 'white' }}>
-                <th className="px-3 py-2 text-left text-[10px] uppercase font-bold tracking-wide border border-[#3d5166]">Target</th>
-                <th className="px-3 py-2 text-left text-[10px] uppercase font-bold tracking-wide border border-[#3d5166] w-44">Status Change</th>
-                <th className="px-3 py-2 text-left text-[10px] uppercase font-bold tracking-wide border border-[#3d5166] w-36">Channels</th>
-                <th className="px-3 py-2 text-left text-[10px] uppercase font-bold tracking-wide border border-[#3d5166] w-36">Time</th>
+              <tr className="bg-subtle">
+                <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec px-3 py-2.5 border-b border-border-base text-left">Target</th>
+                <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec px-3 py-2.5 border-b border-border-base text-left w-44">Status Change</th>
+                <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec px-3 py-2.5 border-b border-border-base text-left w-36">Channels</th>
+                <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec px-3 py-2.5 border-b border-border-base text-left w-36">Time</th>
               </tr>
             </thead>
             <tbody>
-              {alerts.map((a, i) => (
-                <tr key={a.id} className={i % 2 === 0 ? 'bg-white' : 'bg-row-alt'}>
-                  <td className="px-3 py-1.5 border border-panel-border font-mono font-bold text-foreground">{a.target_address}</td>
-                  <td className="px-3 py-1.5 border border-panel-border"><StatusChange from={a.from_status} to={a.to_status} /></td>
-                  <td className="px-3 py-1.5 border border-panel-border">
+              {alerts.map((a) => (
+                <tr key={a.id} className="border-b border-border-base hover:bg-subtle transition-colors">
+                  <td className="px-3 py-2.5 font-mono font-semibold text-text-base text-sm">{a.target_address}</td>
+                  <td className="px-3 py-2.5"><StatusChange from={a.from_status} to={a.to_status} /></td>
+                  <td className="px-3 py-2.5">
                     {a.channels.length > 0
                       ? <div className="flex gap-1">{a.channels.map(ch => (
-                          <span key={ch} className="text-[10px] font-bold px-1.5 py-0.5 bg-[#1e3a5f] text-[#8ab4c8] uppercase" style={{ borderRadius: 2 }}>{ch}</span>
+                          <span key={ch} className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-accent-subtle text-accent uppercase">{ch}</span>
                         ))}</div>
-                      : <span className="text-[10px] text-muted italic">none</span>}
+                      : <span className="text-xs text-text-muted italic">none</span>}
                   </td>
-                  <td className="px-3 py-1.5 border border-panel-border text-[10px] text-muted">{fmt(a.created_at)}</td>
+                  <td className="px-3 py-2.5 text-xs text-text-sec">{fmt(a.created_at)}</td>
                 </tr>
               ))}
             </tbody>
             <tfoot>
-              <tr className="bg-[#f0f2f5]">
-                <td colSpan={4} className="px-3 py-1.5 border border-panel-border">
+              <tr className="bg-subtle">
+                <td colSpan={4} className="px-3 py-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-muted text-[11px]">{total} alert{total !== 1 ? 's' : ''} total</span>
+                    <span className="text-text-sec text-xs">{total} alert{total !== 1 ? 's' : ''} total</span>
                     {totalPages > 1 && (
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] text-muted font-mono">{(page-1)*pageSize+1}–{Math.min(page*pageSize,total)} of {total}</span>
+                        <span className="text-xs text-text-sec font-mono">{(page-1)*pageSize+1}–{Math.min(page*pageSize,total)} of {total}</span>
                         <button onClick={() => setPage(p => Math.max(1, p-1))} disabled={page===1}
-                          className="p-0.5 border border-panel-border bg-white disabled:opacity-40" style={{ borderRadius: 2 }}><ChevronLeft size={12} /></button>
-                        <span className="text-[10px] font-bold">{page}/{totalPages}</span>
+                          className="p-0.5 border border-border-base rounded bg-surface hover:bg-subtle disabled:opacity-40"><ChevronLeft size={13} /></button>
+                        <span className="text-xs font-semibold text-text-base">{page}/{totalPages}</span>
                         <button onClick={() => setPage(p => Math.min(totalPages, p+1))} disabled={page===totalPages}
-                          className="p-0.5 border border-panel-border bg-white disabled:opacity-40" style={{ borderRadius: 2 }}><ChevronRight size={12} /></button>
+                          className="p-0.5 border border-border-base rounded bg-surface hover:bg-subtle disabled:opacity-40"><ChevronRight size={13} /></button>
                       </div>
                     )}
                   </div>

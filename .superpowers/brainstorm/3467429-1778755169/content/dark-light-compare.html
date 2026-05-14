@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Dark vs Light Comparison</title>
+<style>
+* { margin:0;padding:0;box-sizing:border-box; }
+body { background:#e8e8f0; font-family:-apple-system,BlinkMacSystemFont,'Inter','Segoe UI',sans-serif; padding:24px; }
+h1 { font-size:16px;font-weight:700;color:#1a1a2e;margin-bottom:4px; }
+.sub { font-size:12px;color:#888;margin-bottom:20px; }
+.split { display:grid;grid-template-columns:1fr 1fr;gap:20px; }
+.frame { border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.12),0 16px 40px rgba(0,0,0,0.08); }
+.frame-title { padding:10px 16px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em; }
+
+/* ─── SHARED ─── */
+.app { display:grid;grid-template-columns:200px 1fr;height:520px; }
+.main { display:flex;flex-direction:column;overflow:hidden; }
+.topbar { height:52px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;flex-shrink:0; }
+.page-title { font-size:15px;font-weight:700;letter-spacing:-0.3px; }
+.actions { display:flex;gap:6px; }
+.btn { padding:5px 10px;border-radius:7px;font-size:11px;font-weight:600;display:flex;align-items:center;gap:4px;cursor:pointer; }
+.content { padding:16px 20px;overflow:auto;flex:1; }
+.kpis { display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px; }
+.kpi { border-radius:8px;padding:12px; }
+.kv { font-size:22px;font-weight:700;letter-spacing:-0.5px; }
+.kl { font-size:9px;text-transform:uppercase;letter-spacing:0.06em;margin-top:3px;font-weight:500; }
+.panel { border-radius:8px;overflow:hidden; }
+.ph { padding:10px 14px;display:flex;align-items:center;justify-content:space-between; }
+.pt { font-size:12px;font-weight:600; }
+.pm { font-size:10px; }
+.sbar { padding:8px 14px;display:flex;align-items:center;gap:6px;border-bottom-width:1px;border-bottom-style:solid; }
+.si { flex:1;border-radius:6px;padding:5px 8px;font-size:11px;border-width:1px;border-style:solid; }
+.fb { padding:4px 8px;border-radius:6px;font-size:10px;font-weight:600;border-width:1px;border-style:solid;cursor:pointer; }
+.tbl { width:100%;border-collapse:collapse;font-size:11px; }
+.tbl th { padding:7px 12px;text-align:left;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em; }
+.tbl td { padding:8px 12px;border-top-width:1px;border-top-style:solid; }
+.ip { font-family:'SF Mono','JetBrains Mono',monospace;font-size:11px;font-weight:600; }
+.sb-pill { font-family:monospace;font-size:9px;padding:2px 5px;border-radius:4px;margin-right:2px; }
+.dnsbl { font-family:monospace;font-size:9px;padding:2px 5px;border-radius:4px;margin-right:2px;border-width:1px;border-style:solid; }
+.tag-list { display:inline-flex; flex-wrap:wrap; gap:3px; }
+.pg { display:flex;align-items:center;justify-content:space-between;padding:8px 14px; }
+.pg-info { font-size:10px; }
+.pg-btns { display:flex;gap:3px; }
+.pg-btn { padding:3px 8px;border-radius:5px;font-size:10px;border-width:1px;border-style:solid; }
+
+/* sidebar */
+.sb { display:flex;flex-direction:column; }
+.sb-logo { padding:16px 14px 12px;display:flex;align-items:center;gap:8px;border-bottom-width:1px;border-bottom-style:solid; }
+.sb-icon { width:26px;height:26px;border-radius:7px;background:linear-gradient(135deg,#5e6ad2,#8b5cf6);display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0; }
+.sb-name { font-size:13px;font-weight:700;letter-spacing:-0.3px; }
+.sb-nav { padding:8px;flex:1; }
+.sb-sec { font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;padding:10px 8px 4px; }
+.sb-item { display:flex;align-items:center;gap:7px;padding:6px 8px;border-radius:6px;font-size:12px;cursor:pointer;margin-bottom:1px; }
+.sb-icon2 { font-size:13px;width:16px;text-align:center; }
+.sb-cnt { margin-left:auto;font-size:9px;font-weight:700;padding:1px 5px;border-radius:10px; }
+.sb-foot { padding:10px 8px;border-top-width:1px;border-top-style:solid;display:flex;align-items:center;gap:8px; }
+.sb-av { width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,#5e6ad2,#8b5cf6);font-size:10px;font-weight:700;color:white;display:flex;align-items:center;justify-content:center; }
+.sb-uname { font-size:11px;font-weight:600; }
+.sb-urole { font-size:9px; }
+.toggle-badge { padding:3px 8px;border-radius:20px;font-size:9px;font-weight:700;margin-left:auto;cursor:pointer; }
+
+/* ─── LIGHT ─── */
+.l .frame-title { background:#f0f0f5;color:#888;border-bottom:1px solid #e0e0e8; }
+.l .app { background:#f9f9fb; }
+.l .sb { background:#fff;border-right:1px solid #efefef; }
+.l .sb-logo { border-color:#f5f5f5; }
+.l .sb-name { color:#1a1a2e; }
+.l .sb-sec { color:#c0c0c8; }
+.l .sb-item { color:#6b7280; }
+.l .sb-item.active { background:#f3f3fc;color:#5e6ad2;font-weight:600; }
+.l .sb-item.danger.active { background:#fef2f2;color:#dc2626;font-weight:600; }
+.l .sb-cnt { background:#fee2e2;color:#dc2626; }
+.l .sb-foot { border-color:#f5f5f5; }
+.l .sb-uname { color:#374151; }
+.l .sb-urole { color:#9ca3af; }
+.l .topbar { background:#fff;border-bottom:1px solid #efefef; }
+.l .page-title { color:#1a1a2e; }
+.l .btn { background:#fff;border:1px solid #e5e5e5;color:#6b7280; }
+.l .btn.primary { background:#5e6ad2;color:white;border-color:#5e6ad2; }
+.l .ws-dot { color:#22c55e; }
+.l .toggle-badge { background:#1a1a2e;color:#fff; }
+.l .kpi { background:#fff;border:1px solid #efefef; }
+.l .kl { color:#9ca3af; }
+.l .panel { background:#fff;border:1px solid #efefef; }
+.l .ph { border-bottom:1px solid #f5f5f5; }
+.l .pt { color:#374151; }
+.l .pm { color:#9ca3af; }
+.l .sbar { background:#fafafa;border-color:#f0f0f0; }
+.l .si { background:#fff;border-color:#e5e5e5;color:#374151; }
+.l .fb { background:#fff;border-color:#e5e5e5;color:#6b7280; }
+.l .fb.on { background:#f3f3fc;color:#5e6ad2;border-color:#c7d2f8; }
+.l .tbl th { background:#fafafa;color:#9ca3af;border-bottom:1px solid #f5f5f5; }
+.l .tbl td { border-color:#f9f9f9; }
+.l .tbl tr:hover td { background:#fafafa; }
+.l .ip { color:#1f2937; }
+.l .sb-pill { background:#f3f4f6;color:#9ca3af; }
+.l .dnsbl { background:#fef2f2;color:#dc2626;border-color:#fecaca; }
+.l .hit-red { color:#dc2626;font-family:monospace;font-weight:600; }
+.l .hit-grn { color:#16a34a;font-family:monospace; }
+.l .pg { border-top:1px solid #f5f5f5;background:#fafafa; }
+.l .pg-info { color:#9ca3af; }
+.l .pg-btn { background:#fff;border-color:#e5e5e5;color:#6b7280; }
+.l .pg-btn.on { background:#5e6ad2;color:white;border-color:#5e6ad2; }
+
+/* ─── DARK ─── */
+.d .frame-title { background:#111;color:#555;border-bottom:1px solid #1e1e1e; }
+.d .app { background:#0d0d0f; }
+.d .sb { background:#0a0a0c;border-right:1px solid #1a1a1e; }
+.d .sb-logo { border-color:#1a1a1e; }
+.d .sb-name { color:#f0f0f8; }
+.d .sb-sec { color:#333; }
+.d .sb-item { color:#555; }
+.d .sb-item.active { background:rgba(94,106,210,0.12);color:#7c8adf;font-weight:600; }
+.d .sb-item.danger.active { background:rgba(220,38,38,0.1);color:#f87171;font-weight:600; }
+.d .sb-cnt { background:rgba(248,113,113,0.15);color:#f87171; }
+.d .sb-foot { border-color:#1a1a1e; }
+.d .sb-uname { color:#d1d5db; }
+.d .sb-urole { color:#4b5563; }
+.d .topbar { background:#0a0a0c;border-bottom:1px solid #1a1a1e; }
+.d .page-title { color:#f0f0f8; }
+.d .btn { background:#111;border:1px solid #222;color:#555; }
+.d .btn.primary { background:#5e6ad2;color:white;border-color:#5e6ad2; }
+.d .ws-dot { color:#22c55e; }
+.d .toggle-badge { background:#f0f0f8;color:#1a1a2e; }
+.d .kpi { background:#111;border:1px solid #1e1e1e; }
+.d .kl { color:#4b5563; }
+.d .panel { background:#111;border:1px solid #1e1e1e; }
+.d .ph { border-bottom:1px solid #1a1a1e; }
+.d .pt { color:#d1d5db; }
+.d .pm { color:#4b5563; }
+.d .sbar { background:#0d0d0f;border-color:#1a1a1e; }
+.d .si { background:#111;border-color:#222;color:#9ca3af; }
+.d .fb { background:#111;border-color:#222;color:#555; }
+.d .fb.on { background:rgba(94,106,210,0.12);color:#7c8adf;border-color:rgba(94,106,210,0.25); }
+.d .tbl th { background:#0d0d0f;color:#4b5563;border-bottom:1px solid #1a1a1e; }
+.d .tbl td { border-color:#141418; }
+.d .tbl tr:hover td { background:#111; }
+.d .ip { color:#e5e7eb; }
+.d .sb-pill { background:#1e1e22;color:#555; }
+.d .dnsbl { background:rgba(248,113,113,0.08);color:#f87171;border-color:rgba(248,113,113,0.2); }
+.d .hit-red { color:#f87171;font-family:monospace;font-weight:600; }
+.d .hit-grn { color:#34d399;font-family:monospace; }
+.d .pg { border-top:1px solid #1a1a1e;background:#0d0d0f; }
+.d .pg-info { color:#4b5563; }
+.d .pg-btn { background:#111;border-color:#222;color:#555; }
+.d .pg-btn.on { background:#5e6ad2;color:white;border-color:#5e6ad2; }
+</style>
+</head>
+<body>
+<h1>Light + Dark Mode — Design C (Linear Minimal)</h1>
+<p class="sub">Same design, same components — toggle switches instantly between modes</p>
+
+<div class="split">
+
+<!-- LIGHT -->
+<div class="l">
+  <div class="frame">
+    <div class="frame-title">☀️ Light Mode</div>
+    <div class="app">
+      <div class="sb">
+        <div class="sb-logo">
+          <div class="sb-icon">🛡</div>
+          <span class="sb-name">Guardly</span>
+          <span class="toggle-badge">☀</span>
+        </div>
+        <div class="sb-nav">
+          <div class="sb-sec">Monitor</div>
+          <div class="sb-item danger active"><span class="sb-icon2">⚡</span>Problems<span class="sb-cnt">1,806</span></div>
+          <div class="sb-item"><span class="sb-icon2">📡</span>Monitored</div>
+          <div class="sb-item"><span class="sb-icon2">🔍</span>Scanner</div>
+          <div class="sb-sec">Analytics</div>
+          <div class="sb-item"><span class="sb-icon2">📊</span>Reports</div>
+          <div class="sb-item"><span class="sb-icon2">🕒</span>Sessions</div>
+          <div class="sb-sec">System</div>
+          <div class="sb-item"><span class="sb-icon2">🔔</span>Alerts</div>
+          <div class="sb-item"><span class="sb-icon2">⚙️</span>Settings</div>
+        </div>
+        <div class="sb-foot">
+          <div class="sb-av">RS</div>
+          <div><div class="sb-uname">Admin</div><div class="sb-urole">super_admin</div></div>
+        </div>
+      </div>
+      <div class="main">
+        <div class="topbar">
+          <span class="page-title">Active Problems</span>
+          <div class="actions">
+            <div class="btn"><span style="color:#22c55e">●</span> Live</div>
+            <div class="btn">↓ Export</div>
+            <div class="btn primary">⟳ Recheck</div>
+          </div>
+        </div>
+        <div class="content">
+          <div class="kpis">
+            <div class="kpi"><div class="kv" style="color:#dc2626">1,806</div><div class="kl">Listed</div></div>
+            <div class="kpi"><div class="kv" style="color:#16a34a">5,899</div><div class="kl">Clean</div></div>
+            <div class="kpi"><div class="kv" style="color:#374151">22</div><div class="kl">Subnets</div></div>
+            <div class="kpi"><div class="kv" style="color:#5e6ad2">52</div><div class="kl">DNSBL</div></div>
+          </div>
+          <div class="panel">
+            <div class="ph"><span class="pt">Blacklisted IPs</span><span class="pm">Auto-refresh 10s</span></div>
+            <div class="sbar">
+              <input class="si" placeholder="🔍 Filter IP or DNSBL…" style="outline:none">
+              <span class="fb on">Group /24</span>
+              <span class="fb">50</span><span class="fb on">100</span><span class="fb">200</span>
+            </div>
+            <table class="tbl">
+              <thead><tr><th>IP</th><th>Subnet</th><th>Blacklisted On</th><th>Hits</th><th>Check</th></tr></thead>
+              <tbody>
+                <tr><td><span class="ip">77.90.141.5</span></td><td><span class="sb-pill">77.90.141.0/24</span></td><td><div class="tag-list"><span class="dnsbl">zen.spamhaus.org</span><span class="dnsbl">bl.spamcop.net</span></div></td><td><span class="hit-red">4/52</span></td><td style="font-size:10px;color:#9ca3af">2m ago</td></tr>
+                <tr><td><span class="ip">77.90.142.18</span></td><td><span class="sb-pill">77.90.142.0/24</span></td><td><div class="tag-list"><span class="dnsbl">zen.spamhaus.org</span></div></td><td><span class="hit-red">2/52</span></td><td style="font-size:10px;color:#9ca3af">5m ago</td></tr>
+                <tr><td><span class="ip">77.90.163.22</span></td><td><span class="sb-pill">77.90.163.0/24</span></td><td><div class="tag-list"><span class="dnsbl">zen.spamhaus.org</span><span class="dnsbl">b.barracuda.org</span></div></td><td><span class="hit-red">7/52</span></td><td style="font-size:10px;color:#9ca3af">now</td></tr>
+                <tr><td><span class="ip">213.209.131.3</span></td><td><span class="sb-pill">213.209.131.0/24</span></td><td style="color:#9ca3af;font-style:italic;font-size:10px">Pending</td><td><span class="hit-grn">0/52</span></td><td style="font-size:10px;color:#9ca3af">1h ago</td></tr>
+              </tbody>
+            </table>
+            <div class="pg"><span class="pg-info">Showing 1–100 of 1,806</span><div class="pg-btns"><span class="pg-btn">«</span><span class="pg-btn on">1</span><span class="pg-btn">2</span><span class="pg-btn">3</span><span class="pg-btn">»</span></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- DARK -->
+<div class="d">
+  <div class="frame">
+    <div class="frame-title">🌙 Dark Mode</div>
+    <div class="app">
+      <div class="sb">
+        <div class="sb-logo">
+          <div class="sb-icon">🛡</div>
+          <span class="sb-name">Guardly</span>
+          <span class="toggle-badge">🌙</span>
+        </div>
+        <div class="sb-nav">
+          <div class="sb-sec">Monitor</div>
+          <div class="sb-item danger active"><span class="sb-icon2">⚡</span>Problems<span class="sb-cnt">1,806</span></div>
+          <div class="sb-item"><span class="sb-icon2">📡</span>Monitored</div>
+          <div class="sb-item"><span class="sb-icon2">🔍</span>Scanner</div>
+          <div class="sb-sec">Analytics</div>
+          <div class="sb-item"><span class="sb-icon2">📊</span>Reports</div>
+          <div class="sb-item"><span class="sb-icon2">🕒</span>Sessions</div>
+          <div class="sb-sec">System</div>
+          <div class="sb-item"><span class="sb-icon2">🔔</span>Alerts</div>
+          <div class="sb-item"><span class="sb-icon2">⚙️</span>Settings</div>
+        </div>
+        <div class="sb-foot">
+          <div class="sb-av">RS</div>
+          <div><div class="sb-uname">Admin</div><div class="sb-urole">super_admin</div></div>
+        </div>
+      </div>
+      <div class="main">
+        <div class="topbar">
+          <span class="page-title">Active Problems</span>
+          <div class="actions">
+            <div class="btn"><span style="color:#22c55e">●</span> Live</div>
+            <div class="btn">↓ Export</div>
+            <div class="btn primary">⟳ Recheck</div>
+          </div>
+        </div>
+        <div class="content">
+          <div class="kpis">
+            <div class="kpi"><div class="kv" style="color:#f87171">1,806</div><div class="kl">Listed</div></div>
+            <div class="kpi"><div class="kv" style="color:#34d399">5,899</div><div class="kl">Clean</div></div>
+            <div class="kpi"><div class="kv" style="color:#e5e7eb">22</div><div class="kl">Subnets</div></div>
+            <div class="kpi"><div class="kv" style="color:#7c8adf">52</div><div class="kl">DNSBL</div></div>
+          </div>
+          <div class="panel">
+            <div class="ph"><span class="pt">Blacklisted IPs</span><span class="pm">Auto-refresh 10s</span></div>
+            <div class="sbar">
+              <input class="si" placeholder="🔍 Filter IP or DNSBL…" style="outline:none;background:transparent">
+              <span class="fb on">Group /24</span>
+              <span class="fb">50</span><span class="fb on">100</span><span class="fb">200</span>
+            </div>
+            <table class="tbl">
+              <thead><tr><th>IP</th><th>Subnet</th><th>Blacklisted On</th><th>Hits</th><th>Check</th></tr></thead>
+              <tbody>
+                <tr><td><span class="ip">77.90.141.5</span></td><td><span class="sb-pill">77.90.141.0/24</span></td><td><div class="tag-list"><span class="dnsbl">zen.spamhaus.org</span><span class="dnsbl">bl.spamcop.net</span></div></td><td><span class="hit-red">4/52</span></td><td style="font-size:10px;color:#4b5563">2m ago</td></tr>
+                <tr><td><span class="ip">77.90.142.18</span></td><td><span class="sb-pill">77.90.142.0/24</span></td><td><div class="tag-list"><span class="dnsbl">zen.spamhaus.org</span></div></td><td><span class="hit-red">2/52</span></td><td style="font-size:10px;color:#4b5563">5m ago</td></tr>
+                <tr><td><span class="ip">77.90.163.22</span></td><td><span class="sb-pill">77.90.163.0/24</span></td><td><div class="tag-list"><span class="dnsbl">zen.spamhaus.org</span><span class="dnsbl">b.barracuda.org</span></div></td><td><span class="hit-red">7/52</span></td><td style="font-size:10px;color:#4b5563">now</td></tr>
+                <tr><td><span class="ip">213.209.131.3</span></td><td><span class="sb-pill">213.209.131.0/24</span></td><td style="color:#4b5563;font-style:italic;font-size:10px">Pending</td><td><span class="hit-grn">0/52</span></td><td style="font-size:10px;color:#4b5563">1h ago</td></tr>
+              </tbody>
+            </table>
+            <div class="pg"><span class="pg-info">Showing 1–100 of 1,806</span><div class="pg-btns"><span class="pg-btn">«</span><span class="pg-btn on">1</span><span class="pg-btn">2</span><span class="pg-btn">3</span><span class="pg-btn">»</span></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>
+</body>
+</html>

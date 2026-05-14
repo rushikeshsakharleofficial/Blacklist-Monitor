@@ -43,9 +43,7 @@ const MonitoredAssetsPage: React.FC = () => {
     }
   };
 
-  useEffect(() => {
-    fetchTargets();
-  }, []);
+  useEffect(() => { fetchTargets(); }, []);
 
   const handleAdd = async (value: string) => {
     try {
@@ -54,7 +52,6 @@ const MonitoredAssetsPage: React.FC = () => {
       await fetchTargets();
       setShowForm(false);
     } catch (err: any) {
-      console.error('Error adding target:', err);
       setErrorMsg(err.response?.data?.detail || 'Failed to add asset');
     } finally {
       setIsAdding(false);
@@ -71,8 +68,7 @@ const MonitoredAssetsPage: React.FC = () => {
     try {
       await axios.delete(`${API_BASE_URL}/targets/${id}`);
       await fetchTargets();
-    } catch (err) {
-      console.error('Error deleting target:', err);
+    } catch {
       setErrorMsg('Failed to remove asset');
     }
   };
@@ -81,9 +77,7 @@ const MonitoredAssetsPage: React.FC = () => {
     if (deleteAllConfirm !== 'DELETE') return;
     setDeleteAllLoading(true);
     try {
-      await axios.delete(`${API_BASE_URL}/targets/all`, {
-        headers: { 'X-API-Key': apiKey },
-      });
+      await axios.delete(`${API_BASE_URL}/targets/all`, { headers: { 'X-API-Key': apiKey } });
       setTargets([]);
       setShowDeleteAllModal(false);
       setDeleteAllConfirm('');
@@ -125,103 +119,102 @@ const MonitoredAssetsPage: React.FC = () => {
   return (
     <div>
       {errorMsg && <ErrorDialog message={errorMsg} onClose={() => setErrorMsg(null)} />}
-      {/* Page Header */}
-      <header className="flex justify-between items-center mb-4 border-b border-panel-border pb-2">
+
+      <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
         <div>
-          <h1 className="text-base font-bold text-foreground uppercase tracking-wide">Monitored Assets</h1>
-          <p className="text-muted text-[11px] mt-0.5">
+          <h1 className="text-lg font-semibold text-text-base">Monitored Assets</h1>
+          <p className="text-sm text-text-sec mt-0.5">
             Manage IP addresses and domains under active blacklist monitoring
             {!isLoading && (
-              <span className="ml-2 font-bold text-primary">{targets.length} asset{targets.length !== 1 ? 's' : ''}</span>
+              <span className="ml-2 font-semibold text-accent">{targets.length} asset{targets.length !== 1 ? 's' : ''}</span>
             )}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={fetchTargets}
             disabled={isLoading}
-            className="flex items-center gap-1 px-3 py-1.5 text-xs border border-panel-border bg-white hover:bg-row-alt disabled:opacity-60"
+            className="px-3 py-1.5 text-sm font-medium rounded-lg border border-border-base text-text-base hover:bg-subtle transition-colors flex items-center gap-1.5 disabled:opacity-60"
           >
-            <RefreshCw size={12} className={isLoading ? 'animate-spin' : ''} />
+            <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
             Refresh
           </button>
           <button
             onClick={() => { setShowBulkModal(true); setBulkResult(null); setBulkText(''); localStorage.removeItem(LS_BULK_ADD_RESULT); }}
-            className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold uppercase text-white border border-[#1a6b3c]"
-            style={{ background: '#27ae60', borderRadius: 2 }}
+            className="px-3 py-1.5 text-sm font-medium rounded-lg bg-success text-white hover:opacity-90 transition-opacity flex items-center gap-1.5"
           >
-            <Plus size={12} /> Bulk Add
+            <Plus size={14} /> Bulk Add
           </button>
           <button
             onClick={() => setShowForm(prev => !prev)}
-            className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold uppercase text-white border border-[#2a5580]"
-            style={{ background: showForm ? '#4a4a4a' : '#336699', borderRadius: 2 }}
+            className="px-3 py-1.5 text-sm font-medium rounded-lg bg-accent text-white hover:bg-accent-hover transition-colors flex items-center gap-1.5"
           >
-            {showForm ? <><X size={12} /> Cancel</> : <><Plus size={12} /> Add Asset</>}
+            {showForm ? <><X size={14} /> Cancel</> : <><Plus size={14} /> Add Asset</>}
           </button>
           {isAdmin && (
             <button
               onClick={() => { setShowDeleteAllModal(true); setDeleteAllConfirm(''); }}
-              className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold uppercase text-white border border-[#7b241c]"
-              style={{ background: '#c0392b', borderRadius: 2 }}
+              className="px-3 py-1.5 text-sm font-medium rounded-lg bg-danger text-white hover:opacity-90 transition-opacity flex items-center gap-1.5"
             >
-              <Trash2 size={12} /> Delete All
+              <Trash2 size={14} /> Delete All
             </button>
           )}
         </div>
       </header>
 
-      {/* Bulk add last result banner (persists across refresh) */}
+      {/* Bulk add last result banner */}
       {bulkResult && !showBulkModal && (
-        <div className="border border-panel-border px-4 py-2 mb-3 flex items-center gap-4 text-xs" style={{ background: '#1e2a35' }}>
-          <span className="text-muted text-[11px] uppercase tracking-wide font-bold">Last Bulk Add:</span>
-          <span style={{ color: '#27ae60' }} className="font-bold">Added: {bulkResult.added}</span>
-          <span style={{ color: '#f39c12' }} className="font-bold">Skipped: {bulkResult.skipped}</span>
-          <span style={{ color: '#e74c3c' }} className="font-bold">Errors: {bulkResult.errors}</span>
-          <button onClick={() => { setBulkResult(null); localStorage.removeItem(LS_BULK_ADD_RESULT); }} className="ml-auto text-muted hover:text-white"><X size={12} /></button>
+        <div className="rounded-lg border border-border-base bg-subtle px-4 py-3 mb-4 flex items-center gap-4 text-sm">
+          <span className="text-text-sec text-xs font-semibold uppercase tracking-wide">Last Bulk Add:</span>
+          <span className="font-semibold text-success">Added: {bulkResult.added}</span>
+          <span className="font-semibold text-warning">Skipped: {bulkResult.skipped}</span>
+          <span className="font-semibold text-danger">Errors: {bulkResult.errors}</span>
+          <button onClick={() => { setBulkResult(null); localStorage.removeItem(LS_BULK_ADD_RESULT); }} className="ml-auto text-text-sec hover:text-text-base">
+            <X size={14} />
+          </button>
         </div>
       )}
 
       {/* Error Banner */}
       {error && (
-        <div className="border border-danger bg-danger-bg text-danger px-4 py-2 mb-4 text-xs flex items-center gap-2">
-          <Shield size={14} />
+        <div className="rounded-lg border border-danger/30 bg-danger-bg text-danger px-4 py-3 mb-4 text-sm flex items-center gap-2">
+          <Shield size={16} />
           <span>{error}</span>
           <button onClick={() => setError(null)} className="ml-auto">
-            <X size={12} />
+            <X size={14} />
           </button>
         </div>
       )}
 
       {/* Inline Add Form */}
       {showForm && (
-        <div className="border border-panel-border mb-4">
-          <div className="px-3 py-2 border-b border-panel-border" style={{ background: '#2c3e50' }}>
-            <span className="text-white text-[11px] font-bold uppercase tracking-wider">Add New Asset</span>
+        <div className="bg-surface border border-border-base rounded-xl overflow-hidden mb-4">
+          <div className="px-4 py-3 border-b border-border-base">
+            <span className="text-sm font-semibold text-text-base">Add New Asset</span>
           </div>
-          <div className="bg-white p-3">
+          <div className="p-4">
             <AddTargetForm onAdd={handleAdd} onBulkExpand={handleBulkExpand} isLoading={isAdding} />
           </div>
         </div>
       )}
 
       {/* Main Panel */}
-      <div className="border border-panel-border">
-        <div className="flex items-center justify-between px-3 py-2 border-b border-panel-border" style={{ background: '#2c3e50' }}>
-          <span className="text-white text-[11px] font-bold uppercase tracking-wider">Asset Inventory</span>
-          <div className="flex items-center gap-3 text-[10px]">
+      <div className="bg-surface border border-border-base rounded-xl overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border-base">
+          <span className="text-sm font-semibold text-text-base">Asset Inventory</span>
+          <div className="flex items-center gap-3 text-xs">
             {!isLoading && (
               <>
-                <span className="text-[#27ae60] font-bold">{cleanCount} Clean</span>
-                <span className="text-[#e74c3c] font-bold">{listedCount} Listed</span>
-                <span className="text-[#f39c12] font-bold">{pendingCount} Pending</span>
+                <span className="font-semibold text-success">{cleanCount} Clean</span>
+                <span className="font-semibold text-danger">{listedCount} Listed</span>
+                <span className="font-semibold text-warning">{pendingCount} Pending</span>
               </>
             )}
           </div>
         </div>
-        <div className="bg-white">
+        <div>
           {isLoading && !error ? (
-            <div className="px-4 py-8 text-center text-muted text-xs">
+            <div className="px-4 py-10 text-center text-text-sec text-sm">
               Loading monitored assets...
             </div>
           ) : (
@@ -232,19 +225,19 @@ const MonitoredAssetsPage: React.FC = () => {
 
       {/* Bulk Add Modal */}
       {showBulkModal && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-          <div className="border border-panel-border w-full max-w-lg" style={{ background: '#1e2a35' }}>
-            <div className="px-4 py-3 border-b border-panel-border flex items-center justify-between" style={{ background: '#2c3e50' }}>
-              <span className="text-white text-[11px] font-bold uppercase tracking-wider">Bulk Add Targets</span>
-              <button onClick={() => setShowBulkModal(false)} className="text-gray-400 hover:text-white">
-                <X size={14} />
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-surface border border-border-base rounded-xl w-full max-w-lg mx-4 shadow-xl overflow-hidden">
+            <div className="px-5 py-4 border-b border-border-base flex items-center justify-between">
+              <span className="text-sm font-semibold text-text-base">Bulk Add Targets</span>
+              <button onClick={() => setShowBulkModal(false)} className="text-text-sec hover:text-text-base">
+                <X size={16} />
               </button>
             </div>
-            <div className="p-4">
-              <p className="text-[11px] mb-2" style={{ color: '#8fa8c0' }}>One IP, domain, or CIDR subnet per line.</p>
+            <div className="p-5">
+              <p className="text-sm text-text-sec mb-3">One IP, domain, or CIDR subnet per line.</p>
               <textarea
-                className="w-full border border-panel-border p-2 text-xs font-mono focus:outline-none focus:border-primary resize-none"
-                style={{ background: '#263445', color: '#d0dde8', height: '14rem' }}
+                className="border border-border-base rounded-lg px-3 py-2 text-sm bg-surface text-text-base font-mono focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent w-full resize-none"
+                style={{ height: '14rem' }}
                 placeholder={"77.90.141.0/24\n77.90.142.0/24\n8.8.8.8\nexample.com"}
                 value={bulkText}
                 onChange={e => setBulkText(e.target.value)}
@@ -254,33 +247,31 @@ const MonitoredAssetsPage: React.FC = () => {
                   type="checkbox"
                   checked={expandSubnets}
                   onChange={e => setExpandSubnets(e.target.checked)}
-                  className="accent-blue-500"
+                  className="accent-accent"
                 />
-                <span className="text-[11px]" style={{ color: '#8fa8c0' }}>
+                <span className="text-sm text-text-sec">
                   Expand subnets to individual IPs (e.g. /24 → 254 IPs each monitored separately)
                 </span>
               </label>
               {bulkResult && (
-                <div className="mt-2 text-xs flex gap-4">
-                  <span style={{ color: '#27ae60' }} className="font-bold">Added: {bulkResult.added}</span>
-                  <span style={{ color: '#f39c12' }} className="font-bold">Skipped: {bulkResult.skipped}</span>
-                  <span style={{ color: '#e74c3c' }} className="font-bold">Errors: {bulkResult.errors}</span>
+                <div className="mt-3 text-sm flex gap-4">
+                  <span className="font-semibold text-success">Added: {bulkResult.added}</span>
+                  <span className="font-semibold text-warning">Skipped: {bulkResult.skipped}</span>
+                  <span className="font-semibold text-danger">Errors: {bulkResult.errors}</span>
                 </div>
               )}
-              <div className="flex gap-2 mt-3">
+              <div className="flex gap-2 mt-4">
                 <button
                   onClick={handleBulkAdd}
                   disabled={bulkLoading || !bulkText.trim()}
-                  className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold uppercase text-white border border-[#2a5580] disabled:opacity-50 disabled:cursor-not-allowed"
-                  style={{ background: '#336699', borderRadius: 2 }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg bg-accent text-white hover:bg-accent-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <Plus size={12} />
+                  <Plus size={14} />
                   {bulkLoading ? 'Adding...' : 'Add All'}
                 </button>
                 <button
                   onClick={() => setShowBulkModal(false)}
-                  className="px-3 py-1.5 text-xs font-bold uppercase border border-panel-border"
-                  style={{ background: '#3a4a5a', color: '#a0b4c8', borderRadius: 2 }}
+                  className="px-3 py-1.5 text-sm font-medium rounded-lg border border-border-base text-text-base hover:bg-subtle transition-colors"
                 >
                   Close
                 </button>
@@ -292,21 +283,21 @@ const MonitoredAssetsPage: React.FC = () => {
 
       {/* Delete All Confirmation Modal */}
       {showDeleteAllModal && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-          <div className="border border-[#7b241c] w-full max-w-md" style={{ background: '#1e0f0f' }}>
-            <div className="px-4 py-3 border-b border-[#7b241c] flex items-center gap-2" style={{ background: '#c0392b' }}>
-              <Trash2 size={14} className="text-white" />
-              <span className="text-white text-[11px] font-bold uppercase tracking-wider">Delete ALL Targets — Irreversible</span>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-surface border border-border-base rounded-xl w-full max-w-md mx-4 shadow-xl overflow-hidden">
+            <div className="px-5 py-4 border-b border-danger/30 bg-danger-bg flex items-center gap-2">
+              <Trash2 size={16} className="text-danger" />
+              <span className="font-semibold text-sm text-danger">Delete ALL Targets — Irreversible</span>
             </div>
             <div className="p-5">
-              <p className="text-[13px] font-bold mb-1" style={{ color: '#f1948a' }}>
+              <p className="text-sm font-semibold text-danger mb-1">
                 This will permanently delete ALL {targets.length.toLocaleString()} monitored IPs and their full check history.
               </p>
-              <p className="text-[11px] mb-4" style={{ color: '#a0b0c0' }}>
+              <p className="text-sm text-text-sec mb-4">
                 This action cannot be undone. Celery tasks already queued will still run but results will be lost.
               </p>
-              <label className="text-[11px] font-bold uppercase tracking-wide mb-1 block" style={{ color: '#f1948a' }}>
-                Type <span className="font-mono bg-black px-1 py-0.5 rounded">DELETE</span> to confirm
+              <label className="text-xs font-semibold text-text-sec uppercase tracking-wide mb-1.5 block">
+                Type <span className="font-mono bg-subtle px-1 py-0.5 rounded text-text-base">DELETE</span> to confirm
               </label>
               <input
                 type="text"
@@ -314,22 +305,19 @@ const MonitoredAssetsPage: React.FC = () => {
                 onChange={e => setDeleteAllConfirm(e.target.value)}
                 placeholder="DELETE"
                 autoFocus
-                className="w-full px-3 py-2 text-sm font-mono border focus:outline-none mb-4"
-                style={{ background: '#2a0f0f', color: '#f1948a', borderColor: '#7b241c', borderRadius: 2 }}
+                className="border border-border-base rounded-lg px-3 py-2 text-sm bg-surface text-text-base focus:outline-none focus:ring-2 focus:ring-danger/30 focus:border-danger w-full mb-4 font-mono transition-colors"
               />
               <div className="flex gap-2">
                 <button
                   onClick={handleDeleteAll}
                   disabled={deleteAllConfirm !== 'DELETE' || deleteAllLoading}
-                  className="flex-1 py-2 text-xs font-bold uppercase text-white disabled:opacity-40"
-                  style={{ background: '#c0392b', borderRadius: 2 }}
+                  className="flex-1 py-2 text-sm font-medium rounded-lg bg-danger text-white disabled:opacity-40 hover:opacity-90 transition-opacity"
                 >
                   {deleteAllLoading ? 'Deleting…' : 'Delete Everything'}
                 </button>
                 <button
                   onClick={() => setShowDeleteAllModal(false)}
-                  className="px-4 py-2 text-xs font-bold uppercase border border-panel-border"
-                  style={{ background: '#2a3a4a', color: '#a0b4c8', borderRadius: 2 }}
+                  className="px-4 py-2 text-sm font-medium rounded-lg border border-border-base text-text-base hover:bg-subtle transition-colors"
                 >
                   Cancel
                 </button>

@@ -5,7 +5,7 @@ import { ExternalLink, Wifi, WifiOff, RefreshCw, ShieldAlert, ChevronDown, Chevr
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001';
 const STORAGE_KEY = 'api_key';
-const PAGE_SIZES = [50, 100, 200, 500];
+const PAGE_SIZES = [20, 50, 100, 200, 500];
 
 interface ListedTarget {
   id: number;
@@ -37,10 +37,10 @@ function HitTags({ hits }: { hits: string[] }) {
   return (
     <div className="flex flex-wrap gap-1 items-center">
       {shown.map(h => (
-        <span key={h} className="font-mono text-[10px] px-1.5 py-0.5 border border-danger text-danger" style={{ borderRadius: 2, background: '#fce8e6' }}>{h}</span>
+        <span key={h} className="font-mono text-[10px] px-1.5 py-0.5 rounded border border-danger/30 text-danger bg-danger-bg">{h}</span>
       ))}
       {hits.length > 3 && (
-        <button onClick={() => setExpanded(e => !e)} className="text-[10px] font-bold text-danger underline">
+        <button onClick={() => setExpanded(e => !e)} className="text-[10px] font-semibold text-danger underline">
           {expanded ? 'less' : `+${hits.length - 3} more`}
         </button>
       )}
@@ -56,11 +56,10 @@ export default function ProblemsPage() {
   const [rechecking, setRechecking] = useState(false);
   const [recheckMsg, setRecheckMsg] = useState<string | null>(null);
 
-  // View options
   const [search, setSearch] = useState('');
   const [groupBySubnet, setGroupBySubnet] = useState(false);
   const [collapsedSubnets, setCollapsedSubnets] = useState<Set<string>>(new Set());
-  const [pageSize, setPageSize] = useState(100);
+  const [pageSize, setPageSize] = useState(20);
   const [page, setPage] = useState(1);
 
   const wsRef = useRef<WebSocket | null>(null);
@@ -70,7 +69,6 @@ export default function ProblemsPage() {
     const q = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
     const HEADER = ['IP / Domain', 'Type', 'Blacklisted On (DNSBL Zones)', 'Hit Count', 'Total Checked', 'Last Checked'];
 
-    // Group by /24 subnet
     const subnetMap: Record<string, ListedTarget[]> = {};
     filtered.forEach(t => {
       const parts = t.address.split('.');
@@ -79,7 +77,6 @@ export default function ProblemsPage() {
       subnetMap[subnet].push(t);
     });
 
-    // Sort subnets; sort IPs within each
     const sortedSubnets = Object.entries(subnetMap).sort((a, b) => a[0].localeCompare(b[0]));
 
     const lines: string[] = [
@@ -95,15 +92,11 @@ export default function ProblemsPage() {
         .sort((a, b) => a.address.localeCompare(b.address, undefined, { numeric: true }))
         .forEach(t => {
           lines.push([
-            q(t.address),
-            q(t.target_type),
-            q(t.hits.join('\n')),   // one zone per line — renders as multi-line cell in Excel
-            q(t.hits.length),
-            q(t.total_checked),
-            q(t.last_checked ?? ''),
+            q(t.address), q(t.target_type), q(t.hits.join('\n')),
+            q(t.hits.length), q(t.total_checked), q(t.last_checked ?? ''),
           ].join(','));
         });
-      lines.push(''); // blank row between subnets
+      lines.push('');
     });
 
     const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
@@ -131,21 +124,21 @@ export default function ProblemsPage() {
       const sorted = [...ips].sort((a, b) => a.address.localeCompare(b.address, undefined, { numeric: true }));
       const rows = sorted.map((t, i) => `
         <tr style="background:${i%2===0?'#fff':'#f8f9fa'}">
-          <td style="font-family:monospace;font-weight:bold;color:#2c3e50">${esc(t.address)}</td>
+          <td style="font-family:monospace;font-weight:bold;color:#111128">${esc(t.address)}</td>
           <td style="color:#666;font-size:11px;text-transform:uppercase">${esc(t.target_type)}</td>
-          <td>${t.hits.map(h => `<span style="display:inline-block;font-family:monospace;font-size:10px;padding:2px 6px;margin:1px;background:#fce8e6;border:1px solid #e74c3c;color:#c0392b;border-radius:2px">${esc(h)}</span>`).join('')}</td>
-          <td style="text-align:center;font-weight:bold;color:#e74c3c;font-family:monospace">${t.hits.length}/${t.total_checked}</td>
+          <td>${t.hits.map(h => `<span style="display:inline-block;font-family:monospace;font-size:10px;padding:2px 6px;margin:1px;background:#fff0f3;border:1px solid #e11d48;color:#e11d48;border-radius:4px">${esc(h)}</span>`).join('')}</td>
+          <td style="text-align:center;font-weight:bold;color:#e11d48;font-family:monospace">${t.hits.length}/${t.total_checked}</td>
           <td style="color:#888;font-size:11px">${t.last_checked ? new Date(t.last_checked).toLocaleString() : '—'}</td>
         </tr>`).join('');
       return `
       <div style="margin-bottom:24px">
-        <div style="background:#2c3e50;color:white;padding:8px 12px;font-weight:bold;font-size:13px;border-radius:3px 3px 0 0;display:flex;justify-content:space-between">
+        <div style="background:#111128;color:white;padding:8px 12px;font-weight:bold;font-size:13px;border-radius:8px 8px 0 0;display:flex;justify-content:space-between">
           <span>${esc(subnet)}</span>
-          <span style="background:#e74c3c;padding:2px 8px;border-radius:10px;font-size:11px">${ips.length} LISTED</span>
+          <span style="background:#e11d48;padding:2px 8px;border-radius:10px;font-size:11px">${ips.length} LISTED</span>
         </div>
-        <table style="width:100%;border-collapse:collapse;font-size:12px;border:1px solid #ddd">
+        <table style="width:100%;border-collapse:collapse;font-size:12px;border:1px solid #e2e2ea">
           <thead>
-            <tr style="background:#34495e;color:white">
+            <tr style="background:#1a1a24;color:white">
               <th style="padding:6px 10px;text-align:left;width:120px">IP Address</th>
               <th style="padding:6px 10px;text-align:left;width:60px">Type</th>
               <th style="padding:6px 10px;text-align:left">Blacklisted On (DNSBL Zones)</th>
@@ -164,24 +157,24 @@ export default function ProblemsPage() {
 <meta charset="UTF-8">
 <title>Blacklist Report — ${generated}</title>
 <style>
-  body{font-family:Arial,sans-serif;background:#f5f5f5;margin:0;padding:24px;color:#333}
-  h1{color:#2c3e50;margin:0 0 4px}
+  body{font-family:Arial,sans-serif;background:#f7f7f8;margin:0;padding:24px;color:#111128}
+  h1{color:#111128;margin:0 0 4px}
   .meta{color:#888;font-size:12px;margin-bottom:20px}
   .summary{display:flex;gap:16px;margin-bottom:20px}
-  .stat{background:#fff;border:1px solid #ddd;padding:12px 20px;border-radius:3px;min-width:120px}
+  .stat{background:#fff;border:1px solid #e2e2ea;padding:12px 20px;border-radius:8px;min-width:120px}
   .stat-val{font-size:24px;font-weight:bold;font-family:monospace}
   .stat-label{font-size:10px;text-transform:uppercase;color:#888;margin-top:2px}
-  td,th{padding:6px 10px;border:1px solid #e0e0e0}
+  td,th{padding:6px 10px;border:1px solid #e2e2ea}
   @media print{body{background:white;padding:0}}
 </style>
 </head>
 <body>
-<h1>🚨 Blacklist Monitor — Listed IP Report</h1>
+<h1>Blacklist Monitor — Listed IP Report</h1>
 <div class="meta">Generated: ${generated} &nbsp;|&nbsp; Filter: ${filtered.length === targets.length ? 'All listed IPs' : `"${esc(search)}" — ${filtered.length} matched`}</div>
 <div class="summary">
-  <div class="stat"><div class="stat-val" style="color:#e74c3c">${filtered.length}</div><div class="stat-label">Listed IPs</div></div>
-  <div class="stat"><div class="stat-val" style="color:#6c3483">${sortedSubnets.length}</div><div class="stat-label">Subnets</div></div>
-  <div class="stat"><div class="stat-val" style="color:#336699">${filtered.reduce((a,t)=>a+t.hits.length,0)}</div><div class="stat-label">Total Hits</div></div>
+  <div class="stat"><div class="stat-val" style="color:#e11d48">${filtered.length}</div><div class="stat-label">Listed IPs</div></div>
+  <div class="stat"><div class="stat-val" style="color:#5e6ad2">${sortedSubnets.length}</div><div class="stat-label">Subnets</div></div>
+  <div class="stat"><div class="stat-val" style="color:#5e6ad2">${filtered.reduce((a,t)=>a+t.hits.length,0)}</div><div class="stat-label">Total Hits</div></div>
 </div>
 ${subnetSections}
 </body>
@@ -201,9 +194,7 @@ ${subnetSections}
     setRecheckMsg(null);
     try {
       const apiKey = localStorage.getItem(STORAGE_KEY) || '';
-      await axios.post(`${API_BASE_URL}/targets/recheck-all`, null, {
-        headers: { 'X-API-Key': apiKey },
-      });
+      await axios.post(`${API_BASE_URL}/targets/recheck-all`, null, { headers: { 'X-API-Key': apiKey } });
       setRecheckMsg('Recheck queued — results update within ~60 s');
     } catch {
       setRecheckMsg('Failed to queue recheck');
@@ -231,10 +222,7 @@ ${subnetSections}
       ws.onmessage = (event) => {
         try {
           const msg = JSON.parse(event.data);
-          if (msg.type === 'problems_update') {
-            setTargets(msg.data);
-            setLastUpdate(new Date());
-          }
+          if (msg.type === 'problems_update') { setTargets(msg.data); setLastUpdate(new Date()); }
         } catch {}
       };
     };
@@ -246,19 +234,16 @@ ${subnetSections}
     };
   }, []);
 
-  // Reset page when search changes
   useEffect(() => { setPage(1); }, [search, groupBySubnet, pageSize]);
 
   const filtered = useMemo(() => {
     if (!search.trim()) return targets;
     const q = search.toLowerCase();
     return targets.filter(t =>
-      t.address.toLowerCase().includes(q) ||
-      t.hits.some(h => h.toLowerCase().includes(q))
+      t.address.toLowerCase().includes(q) || t.hits.some(h => h.toLowerCase().includes(q))
     );
   }, [targets, search]);
 
-  // Stats
   const dnsblCounts = useMemo(() => {
     const map: Record<string, number> = {};
     filtered.forEach(t => t.hits.forEach(h => { map[h] = (map[h] || 0) + 1; }));
@@ -275,11 +260,9 @@ ${subnetSections}
     });
   };
 
-  // Flat view — paginated
   const totalPages = Math.ceil(filtered.length / pageSize);
   const paged = filtered.slice((page - 1) * pageSize, page * pageSize);
 
-  // Group view
   const grouped = useMemo(() => {
     if (!groupBySubnet) return null;
     const map: Record<string, ListedTarget[]> = {};
@@ -292,30 +275,30 @@ ${subnetSections}
   }, [filtered, groupBySubnet]);
 
   const TABLE_HEADER = (
-    <tr style={{ background: '#2c3e50', color: 'white' }}>
-      <th className="px-3 py-2 text-left text-[10px] uppercase font-bold tracking-wide border border-[#3d5166] w-28">IP / Domain</th>
-      <th className="px-3 py-2 text-left text-[10px] uppercase font-bold tracking-wide border border-[#3d5166]">Listed On (DNSBL)</th>
-      <th className="px-3 py-2 text-left text-[10px] uppercase font-bold tracking-wide border border-[#3d5166] w-14">Hits</th>
-      <th className="px-3 py-2 text-left text-[10px] uppercase font-bold tracking-wide border border-[#3d5166] w-20">Last Check</th>
-      <th className="px-3 py-2 text-left text-[10px] uppercase font-bold tracking-wide border border-[#3d5166] w-14">Detail</th>
+    <tr className="bg-subtle">
+      <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec px-3 py-2.5 border-b border-border-base text-left w-28">IP / Domain</th>
+      <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec px-3 py-2.5 border-b border-border-base text-left">Listed On (DNSBL)</th>
+      <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec px-3 py-2.5 border-b border-border-base text-left w-14">Hits</th>
+      <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec px-3 py-2.5 border-b border-border-base text-left w-20">Last Check</th>
+      <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec px-3 py-2.5 border-b border-border-base text-left w-14">Detail</th>
     </tr>
   );
 
   const ROW = (t: ListedTarget, i: number) => (
-    <tr key={t.id} className={i % 2 === 0 ? 'bg-white' : 'bg-row-alt'}>
-      <td className="px-3 py-1.5 border border-panel-border font-mono font-bold text-foreground text-[11px]">{t.address}</td>
-      <td className="px-3 py-1.5 border border-panel-border">
+    <tr key={t.id} className="border-b border-border-base hover:bg-subtle transition-colors">
+      <td className="px-3 py-2.5 font-mono font-semibold text-text-base text-sm">{t.address}</td>
+      <td className="px-3 py-2.5">
         {t.hits.length === 0
-          ? <span className="text-muted italic text-[10px]">Pending</span>
+          ? <span className="text-text-sec italic text-xs">Pending</span>
           : <HitTags hits={t.hits} />}
       </td>
-      <td className="px-3 py-1.5 border border-panel-border text-danger font-bold font-mono text-center text-[11px]">
+      <td className="px-3 py-2.5 text-danger font-semibold font-mono text-center text-sm">
         {t.hits.length}/{t.total_checked}
       </td>
-      <td className="px-3 py-1.5 border border-panel-border text-muted text-[10px]">{relativeTime(t.last_checked)}</td>
-      <td className="px-3 py-1.5 border border-panel-border">
-        <Link to={`/problems/${t.id}`} className="flex items-center gap-1 text-primary hover:underline text-[11px]">
-          <ExternalLink size={10} /> View
+      <td className="px-3 py-2.5 text-text-sec text-xs">{relativeTime(t.last_checked)}</td>
+      <td className="px-3 py-2.5">
+        <Link to={`/problems/${t.id}`} className="flex items-center gap-1 text-accent hover:underline text-xs">
+          <ExternalLink size={11} /> View
         </Link>
       </td>
     </tr>
@@ -323,55 +306,49 @@ ${subnetSections}
 
   return (
     <div>
-      {/* Header */}
-      <header className="flex justify-between items-center mb-3 border-b border-panel-border pb-2">
+      <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
         <div>
-          <h1 className="text-base font-bold text-foreground uppercase tracking-wide">
-            Listed IPs — Active Problems
-          </h1>
-          <p className="text-muted text-[11px] mt-0.5">Real-time DNSBL hit feed via WebSocket</p>
+          <h1 className="text-lg font-semibold text-text-base">Listed IPs — Active Problems</h1>
+          <p className="text-sm text-text-sec mt-0.5">Real-time DNSBL hit feed via WebSocket</p>
         </div>
-        <div className="flex items-center gap-2">
-          {lastUpdate && <span className="text-muted text-[10px]">Updated {lastUpdate.toLocaleTimeString()}</span>}
+        <div className="flex items-center gap-2 flex-wrap">
+          {lastUpdate && <span className="text-text-sec text-xs">Updated {lastUpdate.toLocaleTimeString()}</span>}
           {recheckMsg && (
-            <span className="text-[10px] font-bold text-warning border border-warning px-2 py-1" style={{ borderRadius: 2 }}>{recheckMsg}</span>
+            <span className="text-xs font-semibold text-warning border border-warning/30 bg-warning-bg px-2 py-1 rounded-md">{recheckMsg}</span>
           )}
           <button onClick={forceRecheckAll} disabled={rechecking}
-            className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-bold border border-panel-border bg-white hover:bg-row-alt disabled:opacity-60 uppercase tracking-wide"
-            style={{ borderRadius: 2 }}>
-            <RefreshCw size={11} className={rechecking ? 'animate-spin' : ''} />
+            className="px-3 py-1.5 text-sm font-medium rounded-lg border border-border-base text-text-base hover:bg-subtle transition-colors disabled:opacity-60 flex items-center gap-1.5">
+            <RefreshCw size={14} className={rechecking ? 'animate-spin' : ''} />
             Recheck All
           </button>
           <button onClick={exportCSV} disabled={filtered.length === 0}
-            className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-bold text-white border border-[#1a6b3c] disabled:opacity-50 uppercase tracking-wide"
-            style={{ background: '#27ae60', borderRadius: 2 }}>
-            <Download size={11} />
+            className="px-3 py-1.5 text-sm font-medium rounded-lg bg-success text-white hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center gap-1.5">
+            <Download size={14} />
             Export CSV
           </button>
           <button onClick={exportHTML} disabled={filtered.length === 0}
-            className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-bold text-white border border-[#2a5580] disabled:opacity-50 uppercase tracking-wide"
-            style={{ background: '#336699', borderRadius: 2 }}>
-            <Download size={11} />
+            className="px-3 py-1.5 text-sm font-medium rounded-lg bg-accent text-white hover:bg-accent-hover transition-colors disabled:opacity-50 flex items-center gap-1.5">
+            <Download size={14} />
             Export HTML
           </button>
-          <div className={`flex items-center gap-1 text-[11px] font-bold px-2 py-1 border ${connected ? 'text-success border-success bg-success-bg' : 'text-danger border-danger bg-danger-bg'}`} style={{ borderRadius: 2 }}>
-            {connected ? <><Wifi size={11} /> Live</> : <><WifiOff size={11} /> Reconnecting{retryCount > 0 ? ` (${retryCount})` : ''}…</>}
+          <div className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg border ${connected ? 'text-success border-success/30 bg-success-bg' : 'text-danger border-danger/30 bg-danger-bg'}`}>
+            {connected ? <><Wifi size={12} /> Live</> : <><WifiOff size={12} /> Reconnecting{retryCount > 0 ? ` (${retryCount})` : ''}…</>}
           </div>
         </div>
       </header>
 
       {/* Stats bar */}
       {targets.length > 0 && (
-        <div className="grid grid-cols-2 gap-2 mb-3">
-          <div className="border border-panel-border px-4 py-3 bg-white">
-            <div className="text-xl font-bold text-danger">{filtered.length.toLocaleString()}</div>
-            <div className="text-[10px] text-muted uppercase tracking-wide">Listed IPs{search ? ' (filtered)' : ''}</div>
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          <div className="bg-surface border border-border-base rounded-xl px-4 py-3">
+            <div className="text-2xl font-bold text-danger">{filtered.length.toLocaleString()}</div>
+            <div className="text-xs text-text-sec uppercase tracking-wide mt-0.5">Listed IPs{search ? ' (filtered)' : ''}</div>
           </div>
-          <div className="border border-panel-border px-4 py-3 bg-white">
-            <div className="text-[11px] font-bold text-foreground mb-1">Top DNSBL Zones</div>
+          <div className="bg-surface border border-border-base rounded-xl px-4 py-3">
+            <div className="text-xs font-semibold text-text-base mb-2">Top DNSBL Zones</div>
             <div className="flex flex-wrap gap-1">
               {dnsblCounts.map(([zone, count]) => (
-                <span key={zone} className="text-[10px] px-1.5 py-0.5 border border-danger text-danger font-mono" style={{ borderRadius: 2, background: '#fce8e6' }}>
+                <span key={zone} className="text-[10px] px-1.5 py-0.5 rounded border border-danger/30 text-danger font-mono bg-danger-bg">
                   {zone} <span className="font-bold">×{count}</span>
                 </span>
               ))}
@@ -381,33 +358,31 @@ ${subnetSections}
       )}
 
       {/* Controls */}
-      <div className="flex items-center gap-2 mb-3">
+      <div className="flex items-center gap-3 mb-4 flex-wrap">
         <div className="relative flex-1 max-w-xs">
-          <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted" />
+          <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-sec" />
           <input
             type="text"
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Filter by IP or DNSBL zone…"
-            className="w-full pl-7 pr-7 py-1.5 text-xs border border-panel-border focus:outline-none focus:border-primary"
-            style={{ borderRadius: 2 }}
+            className="border border-border-base rounded-lg pl-8 pr-8 py-2 text-sm bg-surface text-text-base focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent w-full transition-colors"
           />
           {search && (
-            <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted hover:text-foreground">
-              <X size={11} />
+            <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-sec hover:text-text-base">
+              <X size={13} />
             </button>
           )}
         </div>
-        <label className="flex items-center gap-1.5 text-[11px] text-muted cursor-pointer select-none">
-          <input type="checkbox" checked={groupBySubnet} onChange={e => setGroupBySubnet(e.target.checked)} className="accent-blue-500" />
+        <label className="flex items-center gap-1.5 text-sm text-text-sec cursor-pointer select-none">
+          <input type="checkbox" checked={groupBySubnet} onChange={e => setGroupBySubnet(e.target.checked)} className="accent-accent" />
           Group by /24 subnet
         </label>
-        <div className="ml-auto flex items-center gap-1 text-[11px] text-muted">
+        <div className="ml-auto flex items-center gap-1 text-sm text-text-sec">
           Per page:
           {PAGE_SIZES.map(s => (
             <button key={s} onClick={() => setPageSize(s)}
-              className="px-2 py-0.5 border font-bold"
-              style={{ borderRadius: 2, background: pageSize === s ? '#336699' : 'white', color: pageSize === s ? 'white' : '#555', borderColor: pageSize === s ? '#336699' : '#ddd' }}>
+              className={`px-2 py-0.5 rounded text-xs font-medium border transition-colors ${pageSize === s ? 'bg-accent text-white border-accent' : 'border-border-base text-text-sec hover:bg-subtle'}`}>
               {s}
             </button>
           ))}
@@ -416,12 +391,12 @@ ${subnetSections}
 
       {/* Empty state */}
       {targets.length === 0 && (
-        <div className="border border-panel-border bg-white px-4 py-10 text-center">
-          <ShieldAlert size={28} className="text-success mx-auto mb-2 opacity-60" />
-          <p className="text-xs font-bold text-foreground uppercase tracking-wide mb-1">
+        <div className="bg-surface border border-border-base rounded-xl px-4 py-12 text-center">
+          <ShieldAlert size={28} className="text-success mx-auto mb-3 opacity-60" />
+          <p className="text-sm font-semibold text-text-base mb-1">
             {connected ? 'All Clear — No Listed Assets' : 'Connecting…'}
           </p>
-          <p className="text-xs text-muted">
+          <p className="text-sm text-text-sec">
             {connected ? 'None of your monitored IPs are currently blacklisted.' : 'Establishing WebSocket connection…'}
           </p>
         </div>
@@ -433,23 +408,22 @@ ${subnetSections}
           {grouped.map(([subnet, ips]) => {
             const collapsed = collapsedSubnets.has(subnet);
             return (
-              <div key={subnet} className="border border-panel-border">
+              <div key={subnet} className="bg-surface border border-border-base rounded-xl overflow-hidden">
                 <div
-                  className="flex items-center gap-2 px-3 py-2 cursor-pointer"
-                  style={{ background: '#2c3e50' }}
+                  className="flex items-center gap-2 px-4 py-3 cursor-pointer hover:bg-subtle transition-colors"
                   onClick={() => toggleSubnet(subnet)}
                 >
-                  {collapsed ? <ChevronRight size={14} className="text-white" /> : <ChevronDown size={14} className="text-white" />}
-                  <span className="font-mono text-white font-bold text-[12px]">{subnet}</span>
-                  <span className="ml-2 px-1.5 py-0.5 text-[10px] font-bold text-white" style={{ background: '#e74c3c', borderRadius: 2 }}>
-                    {ips.length} LISTED
+                  {collapsed ? <ChevronRight size={14} className="text-text-sec" /> : <ChevronDown size={14} className="text-text-sec" />}
+                  <span className="font-mono text-text-base font-semibold text-sm">{subnet}</span>
+                  <span className="ml-2 px-2 py-0.5 text-[11px] font-medium rounded-full bg-danger-bg text-danger">
+                    {ips.length} Listed
                   </span>
-                  <span className="ml-auto text-[#8ab4c8] text-[10px]">
+                  <span className="ml-auto text-text-sec text-xs">
                     {ips.reduce((a, t) => a + t.hits.length, 0)} total hits
                   </span>
                 </div>
                 {!collapsed && (
-                  <table className="w-full text-xs border-collapse">
+                  <table className="w-full text-sm border-collapse">
                     <thead>{TABLE_HEADER}</thead>
                     <tbody>{ips.map((t, i) => ROW(t, i))}</tbody>
                   </table>
@@ -457,7 +431,7 @@ ${subnetSections}
               </div>
             );
           })}
-          <div className="text-[11px] text-muted px-1">
+          <div className="text-xs text-text-sec px-1">
             {filtered.length.toLocaleString()} listed IPs across {grouped.length} subnets — {totalHits.toLocaleString()} total hits
           </div>
         </div>
@@ -465,25 +439,25 @@ ${subnetSections}
 
       {/* FLAT view with pagination */}
       {!groupBySubnet && filtered.length > 0 && (
-        <div className="border border-panel-border">
-          <div className="flex items-center justify-between px-3 py-2 border-b border-panel-border" style={{ background: '#2c3e50' }}>
-            <span className="text-white text-[11px] font-bold uppercase tracking-wider">
+        <div className="bg-surface border border-border-base rounded-xl overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border-base">
+            <span className="text-sm font-semibold text-text-base">
               Blacklist Detections
-              <span className="ml-2 px-1.5 py-0.5 text-[10px] font-bold text-white" style={{ background: '#e74c3c', borderRadius: 2 }}>
-                {filtered.length.toLocaleString()} LISTED
+              <span className="ml-2 px-2 py-0.5 text-[11px] font-medium rounded-full bg-danger-bg text-danger">
+                {filtered.length.toLocaleString()} Listed
               </span>
             </span>
-            <span className="text-[#8ab4c8] text-[10px]">
+            <span className="text-text-sec text-xs">
               Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, filtered.length)} of {filtered.length.toLocaleString()}
             </span>
           </div>
 
-          <table className="w-full text-xs border-collapse">
+          <table className="w-full text-sm border-collapse">
             <thead>{TABLE_HEADER}</thead>
             <tbody>{paged.map((t, i) => ROW(t, i))}</tbody>
             <tfoot>
-              <tr className="bg-[#f0f2f5]">
-                <td colSpan={5} className="px-3 py-1.5 border border-panel-border text-muted text-[11px]">
+              <tr className="bg-subtle">
+                <td colSpan={5} className="px-3 py-2 text-text-sec text-xs">
                   {filtered.length.toLocaleString()} listed — {totalHits.toLocaleString()} hits across {targets[0]?.total_checked ?? 0} DNSBL providers
                 </td>
               </tr>
@@ -492,11 +466,11 @@ ${subnetSections}
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-1 px-3 py-2 border-t border-panel-border bg-white">
+            <div className="flex items-center justify-center gap-1 px-3 py-3 border-t border-border-base">
               <button onClick={() => setPage(1)} disabled={page === 1}
-                className="px-2 py-1 text-[11px] border border-panel-border disabled:opacity-40" style={{ borderRadius: 2 }}>«</button>
+                className="px-2 py-1 text-xs border border-border-base rounded-md hover:bg-subtle disabled:opacity-40">«</button>
               <button onClick={() => setPage(p => p - 1)} disabled={page === 1}
-                className="px-2 py-1 text-[11px] border border-panel-border disabled:opacity-40" style={{ borderRadius: 2 }}>‹</button>
+                className="px-2 py-1 text-xs border border-border-base rounded-md hover:bg-subtle disabled:opacity-40">‹</button>
 
               {Array.from({ length: Math.min(7, totalPages) }, (_, i) => {
                 let p: number;
@@ -506,19 +480,18 @@ ${subnetSections}
                 else p = page - 3 + i;
                 return (
                   <button key={p} onClick={() => setPage(p)}
-                    className="px-2.5 py-1 text-[11px] border font-bold"
-                    style={{ borderRadius: 2, background: page === p ? '#336699' : 'white', color: page === p ? 'white' : '#555', borderColor: page === p ? '#336699' : '#ddd' }}>
+                    className={`px-2.5 py-1 text-xs font-medium border rounded-md transition-colors ${page === p ? 'bg-accent text-white border-accent' : 'border-border-base hover:bg-subtle text-text-base'}`}>
                     {p}
                   </button>
                 );
               })}
 
               <button onClick={() => setPage(p => p + 1)} disabled={page === totalPages}
-                className="px-2 py-1 text-[11px] border border-panel-border disabled:opacity-40" style={{ borderRadius: 2 }}>›</button>
+                className="px-2 py-1 text-xs border border-border-base rounded-md hover:bg-subtle disabled:opacity-40">›</button>
               <button onClick={() => setPage(totalPages)} disabled={page === totalPages}
-                className="px-2 py-1 text-[11px] border border-panel-border disabled:opacity-40" style={{ borderRadius: 2 }}>»</button>
+                className="px-2 py-1 text-xs border border-border-base rounded-md hover:bg-subtle disabled:opacity-40">»</button>
 
-              <span className="ml-3 text-[10px] text-muted">Page {page} of {totalPages}</span>
+              <span className="ml-3 text-xs text-text-sec">Page {page} of {totalPages}</span>
             </div>
           )}
         </div>

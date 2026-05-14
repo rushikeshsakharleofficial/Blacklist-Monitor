@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { AlertTriangle, Info, Copy, Check } from 'lucide-react';
+import { AlertTriangle, Info, Copy, Check, X } from 'lucide-react';
 
 interface ConfirmDialogProps {
   message: string;
@@ -18,26 +18,25 @@ export function ConfirmDialog({ message, detail, confirmLabel = 'Confirm', dange
   }, [onCancel]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.45)' }}
-      onClick={onCancel}>
-      <div className="w-[380px] border border-panel-border shadow-lg" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center gap-2 px-3 py-2 border-b border-panel-border"
-          style={{ background: danger ? '#c0392b' : '#2c3e50' }}>
-          <AlertTriangle size={13} className="text-white" />
-          <span className="text-white text-[11px] font-bold uppercase tracking-wider">Confirm Action</span>
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={onCancel}>
+      <div className="bg-surface border border-border-base rounded-xl w-full max-w-md mx-4 shadow-xl overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center gap-2 px-5 py-4 border-b border-border-base">
+          <AlertTriangle size={16} className={danger ? 'text-danger' : 'text-accent'} />
+          <span className="font-semibold text-sm text-text-base">Confirm Action</span>
+          <button onClick={onCancel} className="ml-auto text-text-sec hover:text-text-base">
+            <X size={16} />
+          </button>
         </div>
-        <div className="bg-white p-4">
-          <p className="text-xs font-medium text-foreground mb-1">{message}</p>
-          {detail && <p className="text-[11px] text-muted">{detail}</p>}
-          <div className="flex gap-2 mt-4">
+        <div className="p-5">
+          <p className="text-sm font-medium text-text-base mb-1">{message}</p>
+          {detail && <p className="text-sm text-text-sec">{detail}</p>}
+          <div className="flex gap-2 mt-5">
             <button onClick={onConfirm} autoFocus
-              className="px-4 py-1.5 text-xs font-bold uppercase text-white border disabled:opacity-50"
-              style={{ background: danger ? '#e74c3c' : '#336699', borderColor: danger ? '#c0392b' : '#2a5580', borderRadius: 2 }}>
+              className={`px-4 py-2 text-sm font-medium rounded-lg text-white transition-opacity ${danger ? 'bg-danger hover:opacity-90' : 'bg-accent hover:bg-accent-hover'}`}>
               {confirmLabel}
             </button>
             <button onClick={onCancel}
-              className="px-4 py-1.5 text-xs font-bold uppercase border border-panel-border text-foreground"
-              style={{ borderRadius: 2 }}>
+              className="px-4 py-2 text-sm font-medium rounded-lg border border-border-base text-text-base hover:bg-subtle transition-colors">
               Cancel
             </button>
           </div>
@@ -61,18 +60,19 @@ export function InfoDialog({ title, children, onClose }: InfoDialogProps) {
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.45)' }}
-      onClick={onClose}>
-      <div className="w-[420px] border border-panel-border shadow-lg" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center gap-2 px-3 py-2 border-b border-panel-border" style={{ background: '#2c3e50' }}>
-          <Info size={13} className="text-[#8ab4c8]" />
-          <span className="text-white text-[11px] font-bold uppercase tracking-wider">{title}</span>
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={onClose}>
+      <div className="bg-surface border border-border-base rounded-xl w-full max-w-md mx-4 shadow-xl overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center gap-2 px-5 py-4 border-b border-border-base">
+          <Info size={16} className="text-accent" />
+          <span className="font-semibold text-sm text-text-base">{title}</span>
+          <button onClick={onClose} className="ml-auto text-text-sec hover:text-text-base">
+            <X size={16} />
+          </button>
         </div>
-        <div className="bg-white p-4">
+        <div className="p-5">
           {children}
           <button onClick={onClose} autoFocus
-            className="mt-4 px-4 py-1.5 text-xs font-bold uppercase text-white border border-[#2a5580]"
-            style={{ background: '#336699', borderRadius: 2 }}>
+            className="mt-4 px-4 py-2 text-sm font-medium rounded-lg bg-accent text-white hover:bg-accent-hover transition-colors">
             Close
           </button>
         </div>
@@ -97,15 +97,15 @@ export function ApiKeyDialog({ email, apiKey, onClose }: ApiKeyDialogProps) {
 
   return (
     <InfoDialog title="New API Key Generated" onClose={onClose}>
-      <p className="text-[11px] text-muted mb-3">
-        New API key for <span className="font-bold text-foreground">{email}</span>. Copy it now — it won't be shown again.
+      <p className="text-sm text-text-sec mb-3">
+        New API key for <span className="font-semibold text-text-base">{email}</span>. Copy it now — it won't be shown again.
       </p>
-      <div className="flex items-center gap-2 p-2 bg-row-alt border border-panel-border">
-        <code className="flex-1 text-[11px] font-mono text-foreground break-all">{apiKey}</code>
+      <div className="flex items-center gap-2 p-3 bg-subtle border border-border-base rounded-lg">
+        <code className="flex-1 text-xs font-mono text-text-base break-all">{apiKey}</code>
         <button onClick={copy}
-          className="shrink-0 p-1.5 border border-panel-border bg-white hover:bg-row-alt"
-          title="Copy" style={{ borderRadius: 2 }}>
-          {copied ? <Check size={12} className="text-success" /> : <Copy size={12} className="text-muted" />}
+          className="shrink-0 p-1.5 border border-border-base rounded-md bg-surface hover:bg-subtle transition-colors"
+          title="Copy">
+          {copied ? <Check size={13} className="text-success" /> : <Copy size={13} className="text-text-sec" />}
         </button>
       </div>
     </InfoDialog>
@@ -120,7 +120,7 @@ interface ErrorDialogProps {
 export function ErrorDialog({ message, onClose }: ErrorDialogProps) {
   return (
     <InfoDialog title="Error" onClose={onClose}>
-      <p className="text-xs text-danger">{message}</p>
+      <p className="text-sm text-danger font-medium">{message}</p>
     </InfoDialog>
   );
 }

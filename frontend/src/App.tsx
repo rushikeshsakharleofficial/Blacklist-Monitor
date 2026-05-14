@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
-import { Shield, ShieldAlert, Activity, RefreshCw } from 'lucide-react';
+import { Shield, ShieldAlert, Activity, RefreshCw, Menu } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import { ErrorDialog } from './components/Dialog';
 import StatCard from './components/StatCard';
@@ -90,43 +90,44 @@ function Dashboard({ apiBaseUrl }: { apiBaseUrl: string }) {
   return (
     <>
       {errorMsg && <ErrorDialog message={errorMsg} onClose={() => setErrorMsg(null)} />}
-      <header className="flex justify-between items-center mb-4 border-b border-panel-border pb-2">
+      <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
         <div>
-          <h1 className="text-base font-bold text-foreground uppercase tracking-wide">Security Overview</h1>
-          <p className="text-muted text-[11px] mt-0.5">Real-time DNSBL blacklist monitoring</p>
+          <h1 className="text-lg font-semibold text-text-base">Security Overview</h1>
+          <p className="text-sm text-text-sec mt-0.5">Real-time DNSBL blacklist monitoring</p>
         </div>
-        <button onClick={fetchTargets} className="flex items-center gap-1 px-3 py-1.5 text-xs border border-panel-border bg-white hover:bg-row-alt">
-          <RefreshCw size={12} className={isLoading ? 'animate-spin' : ''} />
+        <button
+          onClick={fetchTargets}
+          className="px-3 py-1.5 text-sm font-medium rounded-lg border border-border-base text-text-base hover:bg-subtle transition-colors flex items-center gap-1.5"
+        >
+          <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
           Refresh
         </button>
       </header>
 
       {error && (
-        <div className="border border-danger bg-danger-bg text-danger px-4 py-2 mb-4 text-xs flex items-center gap-2">
-          <ShieldAlert size={14} />
+        <div className="rounded-lg border border-danger/30 bg-danger-bg text-danger px-4 py-3 text-sm flex items-center gap-2 mb-6">
+          <ShieldAlert size={16} />
           <span>{error}</span>
         </div>
       )}
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-        <StatCard label="Total Monitored" value={targets.length} icon={Shield} accentColor="#336699" />
-        <StatCard label="Blacklisted" value={blacklistedCount} icon={ShieldAlert} accentColor="#e74c3c" valueColor={blacklistedCount > 0 ? '#e74c3c' : undefined} />
-        <StatCard label="Clean" value={secureCount} icon={Activity} accentColor="#27ae60" valueColor={secureCount > 0 ? '#27ae60' : undefined} />
-        <StatCard label="Safety Index" value={targets.length > 0 ? `${Math.round((secureCount / targets.length) * 100)}%` : '100%'} icon={Activity} accentColor="#f39c12" />
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+        <StatCard label="Total Monitored" value={targets.length} icon={Shield} />
+        <StatCard label="Blacklisted" value={blacklistedCount} icon={ShieldAlert} variant={blacklistedCount > 0 ? 'danger' : undefined} />
+        <StatCard label="Clean" value={secureCount} icon={Activity} variant={secureCount > 0 ? 'success' : undefined} />
+        <StatCard label="Safety Index" value={targets.length > 0 ? `${Math.round((secureCount / targets.length) * 100)}%` : '100%'} icon={Activity} variant="warning" />
       </div>
 
-      <section>
-        <div className="border border-panel-border">
-          <div className="flex items-center justify-between px-3 py-2 border-b border-panel-border" style={{ background: '#2c3e50' }}>
-            <span className="text-white text-[11px] font-bold uppercase tracking-wider">Asset Management</span>
-            <span className="text-[#8ab4c8] text-[10px]">Auto-sync every 30s</span>
+      <section className="bg-surface border border-border-base rounded-xl overflow-hidden">
+        <div className="px-4 py-3 border-b border-border-base flex items-center justify-between">
+          <span className="text-sm font-semibold text-text-base">Asset Management</span>
+          <span className="text-xs text-text-sec">Auto-sync every 30s</span>
+        </div>
+        <div className="p-4">
+          <div className="mb-4">
+            <AddTargetForm onAdd={handleAddTarget} onBulkExpand={handleBulkExpand} isLoading={isAdding} />
           </div>
-          <div className="bg-white p-3">
-            <div className="mb-3">
-              <AddTargetForm onAdd={handleAddTarget} onBulkExpand={handleBulkExpand} isLoading={isAdding} />
-            </div>
-            <TargetTable targets={targets} onDelete={handleDeleteTarget} onBulkDelete={handleBulkDeleteTargets} />
-          </div>
+          <TargetTable targets={targets} onDelete={handleDeleteTarget} onBulkDelete={handleBulkDeleteTargets} />
         </div>
       </section>
     </>
@@ -149,6 +150,21 @@ function App() {
   const [loginForm, setLoginForm] = useState({ email: '', password: '', rememberMe: true });
   const [loginError, setLoginError] = useState<string | null>(null);
   const navigate = useNavigate();
+
+  // Dark mode state
+  const [darkMode, setDarkMode] = useState(() => localStorage.getItem('theme') === 'dark');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Apply/remove dark class
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+    }
+  }, [darkMode]);
 
   // Check setup status on load; redirect to /setup if not configured
   useEffect(() => {
@@ -189,7 +205,7 @@ function App() {
       if (loginForm.rememberMe) {
         localStorage.setItem(EXPIRY_KEY, String(Date.now() + 90 * 24 * 60 * 60 * 1000));
       } else {
-        localStorage.removeItem(EXPIRY_KEY); // clears on next load if no expiry = session only
+        localStorage.removeItem(EXPIRY_KEY);
       }
       setLoginError(null);
       setIsLoggedIn(true);
@@ -212,64 +228,72 @@ function App() {
   };
 
   const loginPage = (
-    <div className="min-h-screen bg-background flex items-center justify-center">
-      <div className="w-[360px]">
-        <div className="border border-panel-border" style={{ borderRadius: 4 }}>
-          <div className="flex items-center gap-2 px-4 py-2.5 border-b border-panel-border" style={{ background: '#1e2d3d' }}>
-            <Shield size={14} className="text-[#336699]" />
-            <span className="text-white text-xs font-bold uppercase tracking-widest">Blacklist Monitor</span>
+    <div className="min-h-screen bg-app flex items-center justify-center px-4">
+      <div className="w-full max-w-sm">
+        {/* Logo */}
+        <div className="flex items-center justify-center gap-2.5 mb-8">
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'var(--accent)' }}>
+            <Shield size={18} className="text-white" />
           </div>
-          <div className="bg-white p-5">
-            <p className="text-[11px] text-muted mb-4">Monitoring Console — Authentication Required</p>
-            <form onSubmit={handleLogin} className="space-y-3">
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wide text-foreground mb-1">Email Address</label>
-                <input
-                  type="email"
-                  required
-                  value={loginForm.email}
-                  onChange={e => setLoginForm({...loginForm, email: e.target.value})}
-                  placeholder="admin@company.com"
-                  className="w-full px-2.5 py-1.5 text-xs border border-panel-border font-mono focus:outline-none focus:border-primary"
-                  style={{ borderRadius: 2 }}
-                />
-              </div>
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wide text-foreground mb-1">Password</label>
-                <input
-                  type="password"
-                  required
-                  value={loginForm.password}
-                  onChange={e => setLoginForm({...loginForm, password: e.target.value})}
-                  placeholder="Your password"
-                  className="w-full px-2.5 py-1.5 text-xs border border-panel-border font-mono focus:outline-none focus:border-primary"
-                  style={{ borderRadius: 2 }}
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="rememberMe"
-                  checked={loginForm.rememberMe}
-                  onChange={e => setLoginForm({ ...loginForm, rememberMe: e.target.checked })}
-                  className="w-3 h-3 border border-panel-border"
-                />
-                <label htmlFor="rememberMe" className="text-[10px] text-muted uppercase tracking-wide cursor-pointer select-none">
-                  Remember me for 90 days
-                </label>
-              </div>
-              {loginError && <p className="text-danger text-[11px]">{loginError}</p>}
-              <button
-                type="submit"
-                className="w-full py-2 text-xs font-bold uppercase text-white border border-[#2a5580]"
-                style={{ background: '#336699', borderRadius: 2 }}
-              >
-                Login to Console
-              </button>
-            </form>
-          </div>
+          <span className="text-xl font-bold text-text-base">Guardly</span>
         </div>
-        <p className="text-center text-[10px] text-muted mt-3">Blacklist Monitor v1.0 — DNSBL Monitoring Platform</p>
+
+        <div className="bg-surface border border-border-base rounded-xl p-6 shadow-sm">
+          <h2 className="text-sm font-semibold text-text-base mb-1">Sign in to your account</h2>
+          <p className="text-xs text-text-sec mb-5">Enter your credentials to continue</p>
+
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label className="text-xs font-semibold text-text-sec uppercase tracking-wide mb-1.5 block">
+                Email Address
+              </label>
+              <input
+                type="email"
+                required
+                value={loginForm.email}
+                onChange={e => setLoginForm({ ...loginForm, email: e.target.value })}
+                placeholder="you@company.com"
+                className="border border-border-base rounded-lg px-3 py-2 text-sm bg-surface text-text-base focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent w-full transition-colors"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-text-sec uppercase tracking-wide mb-1.5 block">
+                Password
+              </label>
+              <input
+                type="password"
+                required
+                value={loginForm.password}
+                onChange={e => setLoginForm({ ...loginForm, password: e.target.value })}
+                placeholder="Your password"
+                className="border border-border-base rounded-lg px-3 py-2 text-sm bg-surface text-text-base focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent w-full transition-colors"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="rememberMe"
+                checked={loginForm.rememberMe}
+                onChange={e => setLoginForm({ ...loginForm, rememberMe: e.target.checked })}
+                className="w-3.5 h-3.5 rounded border-border-base accent-accent"
+              />
+              <label htmlFor="rememberMe" className="text-xs text-text-sec cursor-pointer select-none">
+                Remember me for 90 days
+              </label>
+            </div>
+            {loginError && (
+              <p className="text-sm text-danger">{loginError}</p>
+            )}
+            <button
+              type="submit"
+              className="w-full bg-accent hover:bg-accent-hover text-white rounded-lg py-2 font-medium text-sm transition-colors"
+            >
+              Sign in
+            </button>
+          </form>
+        </div>
+
+        <p className="text-center text-xs text-text-muted mt-4">Guardly — DNSBL Monitoring Platform</p>
       </div>
     </div>
   );
@@ -285,28 +309,57 @@ function App() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background text-foreground font-sans">
-      <div className="shrink-0 h-full overflow-y-auto">
-        <Sidebar email={storedEmail} name={storedName} onLogout={handleLogout}
-          permissions={JSON.parse(localStorage.getItem(PERMS_KEY) || '[]')} />
+    <div className="flex h-screen overflow-hidden bg-app text-text-base">
+      {/* Mobile overlay */}
+      {sidebarOpen && (
+        <div className="sidebar-overlay md:hidden" onClick={() => setSidebarOpen(false)} />
+      )}
+
+      {/* Sidebar */}
+      <div className={`
+        fixed inset-y-0 left-0 z-40 transition-transform duration-200
+        md:relative md:translate-x-0 md:flex md:shrink-0
+        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+      `}>
+        <Sidebar
+          email={storedEmail}
+          name={storedName}
+          onLogout={handleLogout}
+          permissions={JSON.parse(localStorage.getItem(PERMS_KEY) || '[]')}
+          darkMode={darkMode}
+          onToggleDark={() => setDarkMode(d => !d)}
+          isMobileOpen={sidebarOpen}
+          onMobileClose={() => setSidebarOpen(false)}
+        />
       </div>
-      <main className="flex-1 p-4 overflow-y-auto h-full">
-        <Routes>
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/login" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/dashboard" element={<Dashboard apiBaseUrl={API_BASE_URL} />} />
-          <Route path="/monitored-assets" element={<MonitoredAssetsPage />} />
-          <Route path="/alerts" element={<AlertsPage />} />
-          <Route path="/reports" element={<ReportsPage />} />
-          <Route path="/settings" element={<SettingsPage onLogout={handleLogout} />} />
-          <Route path="/problems/:targetId" element={<TargetDetailPage />} />
-          <Route path="/problems" element={<ProblemsPage />} />
-          <Route path="/subnet-scan" element={<SubnetScanPage />} />
-          <Route path="/scan-sessions" element={<ScanSessionsPage />} />
-          <Route path="/users" element={<UsersPage />} />
-          <Route path="/roles" element={<RolesPage />} />
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
-        </Routes>
+
+      <main className="flex-1 overflow-y-auto min-h-0">
+        {/* Mobile top bar */}
+        <div className="md:hidden flex items-center gap-3 px-4 py-3 border-b border-border-base bg-surface sticky top-0 z-30">
+          <button onClick={() => setSidebarOpen(true)} className="text-text-sec hover:text-text-base">
+            <Menu size={20} />
+          </button>
+          <span className="font-semibold text-sm text-text-base">Guardly</span>
+        </div>
+
+        <div className="p-4 md:p-6">
+          <Routes>
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/login" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/dashboard" element={<Dashboard apiBaseUrl={API_BASE_URL} />} />
+            <Route path="/monitored-assets" element={<MonitoredAssetsPage />} />
+            <Route path="/alerts" element={<AlertsPage />} />
+            <Route path="/reports" element={<ReportsPage />} />
+            <Route path="/settings" element={<SettingsPage onLogout={handleLogout} />} />
+            <Route path="/problems/:targetId" element={<TargetDetailPage />} />
+            <Route path="/problems" element={<ProblemsPage />} />
+            <Route path="/subnet-scan" element={<SubnetScanPage />} />
+            <Route path="/scan-sessions" element={<ScanSessionsPage />} />
+            <Route path="/users" element={<UsersPage />} />
+            <Route path="/roles" element={<RolesPage />} />
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          </Routes>
+        </div>
       </main>
     </div>
   );

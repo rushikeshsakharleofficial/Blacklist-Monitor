@@ -67,8 +67,10 @@ export default function ScanSessionsPage() {
     finally { setLoadingDetail(prev => ({ ...prev, [id]: false })); }
   };
 
-  const statusColor = (s: string) =>
-    s === 'complete' ? '#27ae60' : s === 'failed' ? '#e74c3c' : '#f39c12';
+  const statusCls = (s: string) =>
+    s === 'complete' ? 'bg-success-bg text-success' :
+    s === 'failed' ? 'bg-danger-bg text-danger' :
+    'bg-warning-bg text-warning';
 
   const fmtDate = (d: string | null) => {
     if (!d) return '—';
@@ -83,25 +85,28 @@ export default function ScanSessionsPage() {
     return `${Math.round(sec / 60)}m ${sec % 60}s`;
   };
 
-  if (loading) return <div className="text-muted text-xs p-4">Loading sessions...</div>;
+  if (loading) return <div className="text-text-sec text-sm p-4">Loading sessions...</div>;
+
+  const TH_CLS = "text-[11px] font-semibold uppercase tracking-wide text-text-sec bg-subtle px-3 py-2.5 border-b border-border-base text-left";
+  const TD_CLS = "px-3 py-2 text-sm text-text-base border-b border-border-base";
 
   return (
     <div>
-      <header className="flex justify-between items-center mb-4 border-b border-panel-border pb-2">
+      <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
         <div>
-          <h1 className="text-base font-bold text-foreground uppercase tracking-wide">Scan Sessions</h1>
-          <p className="text-muted text-[11px] mt-0.5">
+          <h1 className="text-lg font-semibold text-text-base">Scan Sessions</h1>
+          <p className="text-sm text-text-sec mt-0.5">
             History of all subnet scans — results viewable for 1 hour while cached
           </p>
         </div>
         <button onClick={fetchSessions}
-          className="flex items-center gap-1 px-3 py-1.5 text-xs border border-panel-border bg-white hover:bg-row-alt">
-          <RefreshCw size={12} /> Refresh
+          className="px-3 py-1.5 text-sm font-medium rounded-lg border border-border-base text-text-base hover:bg-subtle transition-colors flex items-center gap-1.5">
+          <RefreshCw size={14} /> Refresh
         </button>
       </header>
 
       {sessions.length === 0 && (
-        <div className="text-muted text-xs text-center py-12 border border-panel-border">
+        <div className="text-text-sec text-sm text-center py-12 bg-surface border border-border-base rounded-xl">
           No scan sessions yet. Run a subnet scan to create one.
         </div>
       )}
@@ -114,60 +119,58 @@ export default function ScanSessionsPage() {
           const duration = fmtDuration(sess);
 
           return (
-            <div key={sess.id} className="border border-panel-border">
+            <div key={sess.id} className="bg-surface border border-border-base rounded-xl overflow-hidden">
               {/* Card header */}
               <div
-                className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-row-alt"
+                className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-subtle transition-colors"
                 onClick={() => toggleDetail(sess.id)}
               >
                 {/* Type badge */}
-                <span className="text-[10px] font-bold px-2 py-0.5 text-white uppercase"
-                  style={{ background: sess.session_type === 'bulk' ? '#6c3483' : '#336699', borderRadius: 2, minWidth: 44, textAlign: 'center' }}>
+                <span className={`text-[10px] font-semibold px-2.5 py-0.5 rounded-full uppercase ${sess.session_type === 'bulk' ? 'bg-accent-subtle text-accent' : 'bg-subtle text-text-sec'}`}>
                   {sess.session_type === 'bulk' ? 'BULK' : 'SINGLE'}
                 </span>
 
                 {/* Subnet label */}
-                <span className="font-mono text-xs font-bold text-foreground flex-1 truncate">
+                <span className="font-mono text-sm font-semibold text-text-base flex-1 truncate">
                   {sess.session_type === 'bulk'
                     ? `${parsedParams.cidrs?.length ?? 0} subnets`
                     : (parsedParams.cidr ?? '—')}
                 </span>
 
                 {/* Stats */}
-                <div className="flex items-center gap-4 text-xs">
-                  <span className="text-muted">{sess.total_ips.toLocaleString()} IPs</span>
-                  <span className="font-bold" style={{ color: sess.total_listed > 0 ? '#e74c3c' : '#27ae60' }}>
+                <div className="flex items-center gap-4 text-sm">
+                  <span className="text-text-sec">{sess.total_ips.toLocaleString()} IPs</span>
+                  <span className={`font-semibold ${sess.total_listed > 0 ? 'text-danger' : 'text-success'}`}>
                     {sess.total_listed} listed
                   </span>
-                  {duration && <span className="text-muted">{duration}</span>}
-                  <span className="text-[10px] font-bold px-1.5 py-0.5 text-white"
-                    style={{ background: statusColor(sess.status), borderRadius: 2 }}>
+                  {duration && <span className="text-text-sec text-xs">{duration}</span>}
+                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${statusCls(sess.status)}`}>
                     {sess.status.toUpperCase()}
-                    {sess.status === 'running' && <span className="ml-1">&#8226;</span>}
+                    {sess.status === 'running' && <span className="ml-1">•</span>}
                   </span>
-                  <span className="text-muted text-[10px]">{fmtDate(sess.created_at)}</span>
+                  <span className="text-text-sec text-xs hidden sm:inline">{fmtDate(sess.created_at)}</span>
                   {loadingDetail[sess.id]
-                    ? <RefreshCw size={12} className="animate-spin text-muted" />
-                    : isExpanded ? <ChevronUp size={14} className="text-muted" /> : <ChevronDown size={14} className="text-muted" />
+                    ? <RefreshCw size={13} className="animate-spin text-text-sec" />
+                    : isExpanded ? <ChevronUp size={15} className="text-text-sec" /> : <ChevronDown size={15} className="text-text-sec" />
                   }
                 </div>
               </div>
 
               {/* Expanded detail */}
               {isExpanded && detail && (
-                <div className="border-t border-panel-border">
+                <div className="border-t border-border-base">
                   {/* Bulk: show per-subnet list */}
                   {sess.session_type === 'bulk' && parsedParams.cidrs && (
                     <div className="px-4 py-3">
-                      <p className="text-[11px] text-muted mb-2">Subnets in this batch:</p>
-                      <div className="flex flex-wrap gap-1">
+                      <p className="text-sm text-text-sec mb-2">Subnets in this batch:</p>
+                      <div className="flex flex-wrap gap-1.5">
                         {parsedParams.cidrs.map((c: string) => (
-                          <span key={c} className="font-mono text-[10px] px-2 py-0.5 border border-panel-border bg-row-alt">{c}</span>
+                          <span key={c} className="font-mono text-xs px-2.5 py-0.5 rounded-md border border-border-base bg-subtle text-text-base">{c}</span>
                         ))}
                       </div>
                       {detail.results_available && detail.live_data?.batch_id && (
-                        <p className="text-[11px] text-muted mt-2">
-                          Live results: poll <code className="text-[10px] bg-row-alt px-1">/scan/subnets/bulk/{detail.live_data.batch_id}</code>
+                        <p className="text-sm text-text-sec mt-2">
+                          Live results: poll <code className="text-xs bg-subtle px-1.5 py-0.5 rounded font-mono text-text-base">/scan/subnets/bulk/{detail.live_data.batch_id}</code>
                         </p>
                       )}
                     </div>
@@ -176,32 +179,32 @@ export default function ScanSessionsPage() {
                   {/* Single: show IP results table */}
                   {sess.session_type === 'single' && detail.results_available && detail.live_data && (
                     <div>
-                      <div className="px-4 py-2 border-b border-panel-border flex gap-6 text-xs" style={{ background: '#f8f9fa' }}>
-                        <span><span className="font-bold">{detail.live_data.total}</span> <span className="text-muted">total</span></span>
-                        <span><span className="font-bold text-danger">{detail.live_data.results?.filter((r: any) => r.is_blacklisted).length ?? 0}</span> <span className="text-muted">listed</span></span>
-                        <span><span className="font-bold text-success">{detail.live_data.results?.filter((r: any) => !r.is_blacklisted).length ?? 0}</span> <span className="text-muted">clean</span></span>
+                      <div className="px-4 py-2.5 border-b border-border-base flex gap-6 text-sm bg-subtle">
+                        <span><span className="font-semibold text-text-base">{detail.live_data.total}</span> <span className="text-text-sec">total</span></span>
+                        <span><span className="font-semibold text-danger">{detail.live_data.results?.filter((r: any) => r.is_blacklisted).length ?? 0}</span> <span className="text-text-sec">listed</span></span>
+                        <span><span className="font-semibold text-success">{detail.live_data.results?.filter((r: any) => !r.is_blacklisted).length ?? 0}</span> <span className="text-text-sec">clean</span></span>
                       </div>
                       {detail.live_data.results?.filter((r: any) => r.is_blacklisted).length > 0 ? (
-                        <table className="w-full text-xs border-collapse">
+                        <table className="w-full text-sm border-collapse">
                           <thead>
-                            <tr style={{ background: '#2c3e50', color: 'white' }}>
-                              <th className="px-3 py-2 text-left text-[10px] uppercase font-bold tracking-wide border border-[#3d5166] w-32">IP</th>
-                              <th className="px-3 py-2 text-left text-[10px] uppercase font-bold tracking-wide border border-[#3d5166]">Listed On</th>
-                              <th className="px-3 py-2 text-left text-[10px] uppercase font-bold tracking-wide border border-[#3d5166] w-16">Hits</th>
+                            <tr>
+                              <th className={`${TH_CLS} w-32`}>IP</th>
+                              <th className={TH_CLS}>Listed On</th>
+                              <th className={`${TH_CLS} w-16`}>Hits</th>
                             </tr>
                           </thead>
                           <tbody>
-                            {detail.live_data.results.filter((r: any) => r.is_blacklisted).map((r: any, i: number) => (
-                              <tr key={r.ip} className={i % 2 === 0 ? 'bg-white' : 'bg-row-alt'}>
-                                <td className="px-3 py-1.5 border border-panel-border font-mono font-bold text-danger">{r.ip}</td>
-                                <td className="px-3 py-1.5 border border-panel-border">
+                            {detail.live_data.results.filter((r: any) => r.is_blacklisted).map((r: any) => (
+                              <tr key={r.ip} className="hover:bg-subtle transition-colors">
+                                <td className={`${TD_CLS} font-mono font-semibold text-danger`}>{r.ip}</td>
+                                <td className={TD_CLS}>
                                   <div className="flex flex-wrap gap-1">
                                     {r.hits.map((h: string) => (
-                                      <span key={h} className="font-mono text-[10px] px-1.5 py-0.5 border border-danger text-danger" style={{ borderRadius: 2, background: '#fce8e6' }}>{h}</span>
+                                      <span key={h} className="font-mono text-[10px] px-1.5 py-0.5 rounded border border-danger/30 text-danger bg-danger-bg">{h}</span>
                                     ))}
                                   </div>
                                 </td>
-                                <td className="px-3 py-1.5 border border-panel-border text-center font-mono font-bold text-danger">
+                                <td className={`${TD_CLS} text-center font-mono font-semibold text-danger`}>
                                   {r.hits.length}/{r.total_checked}
                                 </td>
                               </tr>
@@ -209,7 +212,7 @@ export default function ScanSessionsPage() {
                           </tbody>
                         </table>
                       ) : (
-                        <div className="px-4 py-3 text-xs text-muted">
+                        <div className="px-4 py-3 text-sm text-text-sec">
                           {detail.results_available ? 'No listed IPs found — all clean.' : 'Results expired from cache (1h TTL).'}
                         </div>
                       )}
@@ -217,7 +220,7 @@ export default function ScanSessionsPage() {
                   )}
 
                   {!detail.results_available && (
-                    <div className="px-4 py-3 text-xs text-muted">
+                    <div className="px-4 py-3 text-sm text-text-sec">
                       Results expired from Redis cache (1h TTL). Summary: {sess.total_ips} IPs, {sess.total_listed} listed.
                     </div>
                   )}

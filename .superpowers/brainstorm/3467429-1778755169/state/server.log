@@ -1,0 +1,5 @@
+{"type":"server-started","port":51348,"host":"0.0.0.0","url_host":"192.168.1.12","url":"http://192.168.1.12:51348","screen_dir":"/home/rushikesh.sakharle/Projects/blacklist-monitor/.superpowers/brainstorm/3467429-1778755169/content","state_dir":"/home/rushikesh.sakharle/Projects/blacklist-monitor/.superpowers/brainstorm/3467429-1778755169/state"}
+{"type":"screen-added","file":"/home/rushikesh.sakharle/Projects/blacklist-monitor/.superpowers/brainstorm/3467429-1778755169/content/design-directions.html"}
+{"type":"screen-added","file":"/home/rushikesh.sakharle/Projects/blacklist-monitor/.superpowers/brainstorm/3467429-1778755169/content/design-c-detail.html"}
+{"type":"screen-added","file":"/home/rushikesh.sakharle/Projects/blacklist-monitor/.superpowers/brainstorm/3467429-1778755169/content/dark-light-compare.html"}
+{"type":"server-stopped","reason":"idle timeout"}

@@ -22,13 +22,13 @@ function isPrivateIp(v: string): boolean {
   const p = v.split('.').map(Number);
   if (p.length !== 4 || !p.every(n => n >= 0 && n <= 255)) return false;
   return (
-    p[0] === 10 ||                                        // 10.0.0.0/8
-    (p[0] === 172 && p[1] >= 16 && p[1] <= 31) ||        // 172.16.0.0/12
-    (p[0] === 192 && p[1] === 168) ||                     // 192.168.0.0/16
-    p[0] === 127 ||                                       // loopback
-    (p[0] === 169 && p[1] === 254) ||                     // link-local
-    p[0] === 0 ||                                         // 0.0.0.0/8
-    (p[0] === 100 && p[1] >= 64 && p[1] <= 127)          // CGNAT 100.64/10
+    p[0] === 10 ||
+    (p[0] === 172 && p[1] >= 16 && p[1] <= 31) ||
+    (p[0] === 192 && p[1] === 168) ||
+    p[0] === 127 ||
+    (p[0] === 169 && p[1] === 254) ||
+    p[0] === 0 ||
+    (p[0] === 100 && p[1] >= 64 && p[1] <= 127)
   );
 }
 
@@ -97,24 +97,22 @@ const AddTargetForm: React.FC<Props> = ({ onAdd, onBulkExpand, isLoading }) => {
           <input
             value={value}
             onChange={e => { setValue(e.target.value); setError(null); setExpandResult(null); }}
-            placeholder="IP, domain, or subnet CIDR (e.g. 192.168.1.0/24)"
-            className="w-full px-3 py-1.5 text-xs border border-panel-border bg-white font-mono focus:outline-none focus:border-primary"
-            style={{ borderRadius: 2 }}
+            placeholder="IP, domain, or subnet CIDR (e.g. 8.8.8.0/24)"
+            className="border border-border-base rounded-lg px-3 py-2 text-sm bg-surface text-text-base focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent w-full font-mono transition-colors"
           />
-          {error && <div className="text-danger text-[11px] mt-0.5">{error}</div>}
-          {expandResult && <div className="text-success text-[11px] mt-0.5 font-bold">✓ {expandResult}</div>}
+          {error && <div className="text-danger text-xs mt-1">{error}</div>}
+          {expandResult && <div className="text-success text-xs mt-1 font-medium">✓ {expandResult}</div>}
         </div>
 
         {isCIDR && cidrInfo.valid ? (
-          <div className="flex gap-1 shrink-0">
+          <div className="flex gap-1.5 shrink-0">
             <button
               type="submit"
               disabled={isLoading || !trimmed}
               title="Add subnet as a single monitored entity"
-              className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold uppercase text-white border border-[#2a5580] disabled:opacity-50"
-              style={{ background: '#336699', borderRadius: 2 }}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg bg-accent text-white hover:bg-accent-hover transition-colors disabled:opacity-50"
             >
-              <Plus size={12} />
+              <Plus size={14} />
               {isLoading ? 'Adding…' : 'Monitor Subnet'}
             </button>
             <button
@@ -122,10 +120,9 @@ const AddTargetForm: React.FC<Props> = ({ onAdd, onBulkExpand, isLoading }) => {
               onClick={handleBulkExpand}
               disabled={expanding || isLoading || cidrInfo.count > 65534}
               title={cidrInfo.count > 65534 ? 'Too many IPs — max /16' : `Expand and add all ${cidrInfo.count} IPs individually`}
-              className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold uppercase text-white border border-[#1a6b3c] disabled:opacity-50"
-              style={{ background: expanding ? '#1a6b3c' : '#27ae60', borderRadius: 2 }}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg bg-success text-white hover:opacity-90 transition-opacity disabled:opacity-50"
             >
-              <Layers size={12} className={expanding ? 'animate-spin' : ''} />
+              <Layers size={14} className={expanding ? 'animate-spin' : ''} />
               {expanding ? 'Adding…' : `Expand ${cidrInfo.count.toLocaleString()} IPs`}
             </button>
           </div>
@@ -133,11 +130,10 @@ const AddTargetForm: React.FC<Props> = ({ onAdd, onBulkExpand, isLoading }) => {
           <button
             type="submit"
             disabled={isLoading || !trimmed}
-            className="flex items-center gap-1 px-4 py-1.5 text-xs font-bold uppercase text-white border border-[#2a5580] disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
-            style={{ background: '#336699', borderRadius: 2 }}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg bg-accent text-white hover:bg-accent-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
           >
-            <Plus size={12} />
-            {isLoading ? 'Adding…' : '+ Add to Monitor'}
+            <Plus size={14} />
+            {isLoading ? 'Adding…' : 'Add to Monitor'}
           </button>
         )}
       </form>

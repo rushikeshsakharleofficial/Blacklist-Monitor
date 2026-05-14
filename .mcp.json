@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "code-outline": {
+      "command": "code-outline-graph",
+      "args": [
+        "serve",
+        "--no-watch",
+        "/home/rushikesh.sakharle/Projects/blacklist-monitor"
+      ]
+    }
+  }
+}

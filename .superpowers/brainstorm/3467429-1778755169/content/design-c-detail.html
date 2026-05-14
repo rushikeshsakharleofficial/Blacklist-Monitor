@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Design C — Detailed Mockup</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #f0f0f5; font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif; padding: 24px; color: #1a1a2e; }
+h1 { font-size: 16px; font-weight: 700; color: #1a1a2e; margin-bottom: 4px; }
+.sub { font-size: 12px; color: #888; margin-bottom: 20px; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+.frame { background: #fff; border: 1px solid #e5e5e5; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 8px 24px rgba(0,0,0,0.04); }
+.frame-title { padding: 10px 16px; font-size: 11px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.06em; border-bottom: 1px solid #f0f0f0; background: #fafafa; }
+
+/* FULL APP SHELL */
+.app { display: grid; grid-template-columns: 220px 1fr; height: 500px; }
+.sidebar { background: #fff; border-right: 1px solid #efefef; padding: 0; display: flex; flex-direction: column; }
+.sb-logo { padding: 18px 20px 14px; border-bottom: 1px solid #f5f5f5; }
+.sb-logo .mark { display: flex; align-items: center; gap: 8px; }
+.sb-logo .icon { width: 28px; height: 28px; background: linear-gradient(135deg, #5e6ad2, #8b5cf6); border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 13px; }
+.sb-logo .name { font-size: 14px; font-weight: 700; color: #1a1a2e; letter-spacing: -0.3px; }
+.sb-nav { padding: 10px 10px; flex: 1; }
+.sb-section { font-size: 10px; font-weight: 600; color: #c0c0c8; text-transform: uppercase; letter-spacing: 0.1em; padding: 12px 10px 6px; }
+.sb-item { display: flex; align-items: center; gap: 9px; padding: 7px 10px; border-radius: 7px; font-size: 13px; color: #6b7280; cursor: pointer; margin-bottom: 1px; transition: all 0.1s; }
+.sb-item .icon { font-size: 14px; width: 18px; text-align: center; }
+.sb-item .count { margin-left: auto; font-size: 10px; font-weight: 600; background: #fee2e2; color: #dc2626; padding: 1px 6px; border-radius: 10px; }
+.sb-item.active { background: #f3f3fc; color: #5e6ad2; font-weight: 600; }
+.sb-item.danger.active { background: #fef2f2; color: #dc2626; font-weight: 600; }
+.sb-footer { padding: 12px 10px; border-top: 1px solid #f5f5f5; }
+.sb-user { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 7px; }
+.sb-avatar { width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(135deg, #5e6ad2, #8b5cf6); font-size: 11px; font-weight: 700; color: white; display: flex; align-items: center; justify-content: center; }
+.sb-name { font-size: 12px; font-weight: 600; color: #374151; }
+.sb-role { font-size: 10px; color: #9ca3af; }
+.main { background: #f9f9fb; overflow: hidden; display: flex; flex-direction: column; }
+.topbar { background: #fff; border-bottom: 1px solid #efefef; padding: 0 24px; height: 52px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+.page-title { font-size: 15px; font-weight: 700; color: #1a1a2e; letter-spacing: -0.3px; }
+.topbar-actions { display: flex; align-items: center; gap: 8px; }
+.btn-sm { padding: 6px 12px; border-radius: 7px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid #e5e5e5; background: #fff; color: #6b7280; display: flex; align-items: center; gap: 5px; }
+.btn-primary { background: #5e6ad2; color: white; border-color: #5e6ad2; }
+.btn-danger { background: #dc2626; color: white; border-color: #dc2626; }
+.ws-dot { width: 6px; height: 6px; border-radius: 50%; background: #22c55e; display: inline-block; margin-right: 4px; }
+.content { padding: 20px 24px; overflow-y: auto; flex: 1; }
+.kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+.kpi { background: #fff; border: 1px solid #efefef; border-radius: 10px; padding: 16px; }
+.kpi-val { font-size: 26px; font-weight: 700; letter-spacing: -1px; line-height: 1; }
+.kpi-label { font-size: 11px; color: #9ca3af; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 500; }
+.kpi-sub { font-size: 10px; color: #d1d5db; margin-top: 2px; }
+.panel { background: #fff; border: 1px solid #efefef; border-radius: 10px; overflow: hidden; }
+.panel-header { padding: 12px 16px; border-bottom: 1px solid #f5f5f5; display: flex; align-items: center; justify-content: space-between; }
+.panel-title { font-size: 13px; font-weight: 600; color: #374151; }
+.panel-meta { font-size: 11px; color: #9ca3af; }
+.search-bar { display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-bottom: 1px solid #f5f5f5; }
+.search-in { flex: 1; border: 1px solid #e5e5e5; border-radius: 7px; padding: 6px 10px; font-size: 12px; color: #374151; background: #fafafa; }
+.filter-btn { padding: 5px 10px; border-radius: 7px; font-size: 11px; font-weight: 500; border: 1px solid #e5e5e5; color: #6b7280; background: #fff; cursor: pointer; }
+.filter-btn.active { background: #f3f3fc; color: #5e6ad2; border-color: #c7d2f8; }
+.tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
+.tbl th { padding: 8px 12px; text-align: left; font-size: 10px; font-weight: 600; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.06em; border-bottom: 1px solid #f5f5f5; background: #fafafa; }
+.tbl td { padding: 9px 12px; border-bottom: 1px solid #f9f9f9; vertical-align: middle; }
+.tbl tr:hover td { background: #fafafa; }
+.tbl tr:last-child td { border-bottom: none; }
+.ip-addr { font-family: 'SF Mono', 'JetBrains Mono', monospace; font-size: 12px; font-weight: 600; color: #1f2937; }
+.subnet-badge { font-family: monospace; font-size: 10px; color: #9ca3af; background: #f3f4f6; padding: 2px 6px; border-radius: 4px; }
+.status-listed { display: inline-flex; align-items: center; gap: 4px; background: #fef2f2; color: #dc2626; font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.04em; }
+.status-clean { display: inline-flex; align-items: center; gap: 4px; background: #f0fdf4; color: #16a34a; font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 20px; }
+.hit-count { font-family: monospace; font-size: 11px; font-weight: 600; color: #dc2626; }
+.hit-clean { color: #16a34a; }
+.dnsbl-tag { font-family: monospace; font-size: 9px; background: #fef2f2; color: #dc2626; padding: 2px 6px; border-radius: 4px; border: 1px solid #fecaca; margin-right: 3px; }
+.view-link { font-size: 11px; color: #5e6ad2; font-weight: 500; text-decoration: none; }
+.pagination { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; border-top: 1px solid #f5f5f5; }
+.page-info { font-size: 11px; color: #9ca3af; }
+.page-btns { display: flex; gap: 4px; }
+.page-btn { padding: 4px 10px; border: 1px solid #e5e5e5; border-radius: 6px; font-size: 11px; background: #fff; color: #6b7280; cursor: pointer; }
+.page-btn.active { background: #5e6ad2; color: white; border-color: #5e6ad2; }
+</style>
+</head>
+<body>
+<h1>Design C — Linear Minimal (Full Detail)</h1>
+<p class="sub">How the Problems page looks with the new design system</p>
+
+<div class="frame" style="margin-bottom: 20px;">
+  <div class="frame-title">Full App Shell — Problems Page</div>
+  <div class="app">
+    <!-- Sidebar -->
+    <div class="sidebar">
+      <div class="sb-logo">
+        <div class="mark">
+          <div class="icon">🛡</div>
+          <span class="name">Guardly</span>
+        </div>
+      </div>
+      <div class="sb-nav">
+        <div class="sb-section">Monitor</div>
+        <div class="sb-item danger active"><span class="icon">⚡</span> Problems <span class="count">1,806</span></div>
+        <div class="sb-item"><span class="icon">📡</span> Monitored</div>
+        <div class="sb-item"><span class="icon">🔍</span> Subnet Scanner</div>
+        <div class="sb-section">Analytics</div>
+        <div class="sb-item"><span class="icon">📊</span> Reports</div>
+        <div class="sb-item"><span class="icon">🕒</span> Scan Sessions</div>
+        <div class="sb-section">System</div>
+        <div class="sb-item"><span class="icon">🔔</span> Alerts</div>
+        <div class="sb-item"><span class="icon">👥</span> Users</div>
+        <div class="sb-item"><span class="icon">⚙️</span> Settings</div>
+      </div>
+      <div class="sb-footer">
+        <div class="sb-user">
+          <div class="sb-avatar">RS</div>
+          <div>
+            <div class="sb-name">Admin</div>
+            <div class="sb-role">super_admin</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- Main -->
+    <div class="main">
+      <div class="topbar">
+        <div>
+          <div class="page-title">Active Problems</div>
+        </div>
+        <div class="topbar-actions">
+          <div class="btn-sm"><span class="ws-dot"></span>Live</div>
+          <div class="btn-sm">⟳ Recheck All</div>
+          <div class="btn-sm">↓ Export CSV</div>
+          <div class="btn-sm">↓ Export HTML</div>
+        </div>
+      </div>
+      <div class="content">
+        <!-- KPIs -->
+        <div class="kpi-grid">
+          <div class="kpi">
+            <div class="kpi-val" style="color:#dc2626">1,806</div>
+            <div class="kpi-label">Listed Now</div>
+            <div class="kpi-sub">⚠ 23.4% of total</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-val" style="color:#16a34a">5,899</div>
+            <div class="kpi-label">Clean</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-val" style="color:#374151">22</div>
+            <div class="kpi-label">Affected Subnets</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-val" style="color:#5e6ad2">52</div>
+            <div class="kpi-label">DNSBL Zones</div>
+          </div>
+        </div>
+        <!-- Table -->
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title">Blacklisted IPs</span>
+            <span class="panel-meta">Auto-refresh every 10s</span>
+          </div>
+          <div class="search-bar">
+            <input class="search-in" placeholder="🔍  Filter by IP or DNSBL zone…" />
+            <div class="filter-btn active">Group by /24</div>
+            <div class="filter-btn">All Types</div>
+            <div style="margin-left:auto;display:flex;gap:4px">
+              <div class="filter-btn">50</div>
+              <div class="filter-btn active" style="background:#f3f3fc;color:#5e6ad2;border-color:#c7d2f8">100</div>
+              <div class="filter-btn">200</div>
+            </div>
+          </div>
+          <table class="tbl">
+            <thead>
+              <tr>
+                <th>IP Address</th>
+                <th>Subnet</th>
+                <th>Blacklisted On</th>
+                <th>Hits</th>
+                <th>Last Check</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span class="ip-addr">77.90.141.5</span></td>
+                <td><span class="subnet-badge">77.90.141.0/24</span></td>
+                <td><span class="dnsbl-tag">zen.spamhaus.org</span><span class="dnsbl-tag">bl.spamcop.net</span><span style="font-size:10px;color:#9ca3af">+2 more</span></td>
+                <td><span class="hit-count">4/52</span></td>
+                <td style="color:#9ca3af;font-size:11px">2m ago</td>
+                <td><a class="view-link" href="#">View →</a></td>
+              </tr>
+              <tr>
+                <td><span class="ip-addr">77.90.142.18</span></td>
+                <td><span class="subnet-badge">77.90.142.0/24</span></td>
+                <td><span class="dnsbl-tag">zen.spamhaus.org</span><span class="dnsbl-tag">dnsbl-1.uceprotect.net</span></td>
+                <td><span class="hit-count">2/52</span></td>
+                <td style="color:#9ca3af;font-size:11px">5m ago</td>
+                <td><a class="view-link" href="#">View →</a></td>
+              </tr>
+              <tr>
+                <td><span class="ip-addr">213.209.131.3</span></td>
+                <td><span class="subnet-badge">213.209.131.0/24</span></td>
+                <td style="color:#9ca3af;font-size:11px;font-style:italic">Pending check</td>
+                <td><span class="hit-clean">0/52</span></td>
+                <td style="color:#9ca3af;font-size:11px">1h ago</td>
+                <td><a class="view-link" href="#">View →</a></td>
+              </tr>
+              <tr>
+                <td><span class="ip-addr">77.90.163.22</span></td>
+                <td><span class="subnet-badge">77.90.163.0/24</span></td>
+                <td><span class="dnsbl-tag">zen.spamhaus.org</span><span class="dnsbl-tag">bl.spamcop.net</span><span class="dnsbl-tag">b.barracudacentral.org</span></td>
+                <td><span class="hit-count">7/52</span></td>
+                <td style="color:#9ca3af;font-size:11px">just now</td>
+                <td><a class="view-link" href="#">View →</a></td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="pagination">
+            <span class="page-info">Showing 1–100 of 1,806 results</span>
+            <div class="page-btns">
+              <div class="page-btn">«</div>
+              <div class="page-btn active">1</div>
+              <div class="page-btn">2</div>
+              <div class="page-btn">3</div>
+              <div class="page-btn">…</div>
+              <div class="page-btn">19</div>
+              <div class="page-btn">»</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Two-column: Reports + Alerts preview -->
+<div class="row2">
+  <div class="frame">
+    <div class="frame-title">Reports Page Preview</div>
+    <div style="padding:16px;background:#f9f9fb">
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px">
+        <div class="kpi" style="padding:12px"><div class="kpi-val" style="font-size:20px;color:#dc2626">1,806</div><div class="kpi-label">Listed</div></div>
+        <div class="kpi" style="padding:12px"><div class="kpi-val" style="font-size:20px;color:#16a34a">5,899</div><div class="kpi-label">Clean</div></div>
+        <div class="kpi" style="padding:12px"><div class="kpi-val" style="font-size:20px;color:#374151">19,575</div><div class="kpi-label">Checks 30d</div></div>
+        <div class="kpi" style="padding:12px"><div class="kpi-val" style="font-size:20px;color:#5e6ad2">23.4%</div><div class="kpi-label">Hit Rate</div></div>
+      </div>
+      <!-- Bar chart mock -->
+      <div class="panel" style="padding:12px">
+        <div style="font-size:11px;font-weight:600;color:#374151;margin-bottom:8px">Daily Check Activity (30d)</div>
+        <div style="display:flex;align-items:flex-end;gap:2px;height:48px">
+          <div style="flex:1;background:#e0e7ff;border-radius:2px 2px 0 0" data-h="60%"></div>
+          <div style="flex:1;background:#e0e7ff;border-radius:2px 2px 0 0" data-h="80%"></div>
+          <div style="flex:1;background:#e0e7ff;border-radius:2px 2px 0 0" data-h="45%"></div>
+          <div style="flex:1;background:#e0e7ff;border-radius:2px 2px 0 0" data-h="90%"></div>
+          <div style="flex:1;background:#5e6ad2;border-radius:2px 2px 0 0" data-h="100%"></div>
+          <div style="flex:1;background:#e0e7ff;border-radius:2px 2px 0 0" data-h="70%"></div>
+          <div style="flex:1;background:#e0e7ff;border-radius:2px 2px 0 0" data-h="55%"></div>
+          <div style="flex:1;background:#fecaca;border-radius:2px 2px 0 0" data-h="40%"></div>
+          <div style="flex:1;background:#e0e7ff;border-radius:2px 2px 0 0" data-h="85%"></div>
+          <div style="flex:1;background:#e0e7ff;border-radius:2px 2px 0 0" data-h="65%"></div>
+          <div style="flex:1;background:#e0e7ff;border-radius:2px 2px 0 0" data-h="75%"></div>
+          <div style="flex:1;background:#fecaca;border-radius:2px 2px 0 0" data-h="30%"></div>
+          <div style="flex:1;background:#e0e7ff;border-radius:2px 2px 0 0" data-h="88%"></div>
+          <div style="flex:1;background:#5e6ad2;border-radius:2px 2px 0 0" data-h="95%"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:9px;color:#9ca3af;margin-top:4px">
+          <span>Apr 14</span><span>Apr 21</span><span>Apr 28</span><span>May 5</span><span>May 14</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="frame">
+    <div class="frame-title">Monitored Assets — Clean State</div>
+    <div style="padding:16px;background:#f9f9fb">
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <div style="flex:1;background:#fff;border:1px solid #efefef;border-radius:8px;padding:8px 12px">
+          <input style="border:none;outline:none;font-size:12px;color:#374151;width:100%;background:transparent" placeholder="🔍  Search IPs, domains, subnets…" />
+        </div>
+        <div class="btn-sm btn-primary">+ Add Asset</div>
+        <div class="btn-sm" style="background:#16a34a;color:white;border-color:#16a34a">Bulk Add</div>
+      </div>
+      <div class="panel">
+        <table class="tbl">
+          <thead>
+            <tr><th>Address</th><th>Type</th><th>Status</th><th>Org</th><th>Last Check</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><span class="ip-addr">77.90.141.5</span></td><td style="color:#9ca3af;font-size:10px">IP</td><td><span class="status-listed">● Listed</span></td><td style="font-size:10px;color:#9ca3af">Inet LV</td><td style="font-size:10px;color:#9ca3af">2m</td></tr>
+            <tr><td><span class="ip-addr">77.90.142.18</span></td><td style="color:#9ca3af;font-size:10px">IP</td><td><span class="status-listed">● Listed</span></td><td style="font-size:10px;color:#9ca3af">Inet LV</td><td style="font-size:10px;color:#9ca3af">5m</td></tr>
+            <tr><td><span class="ip-addr">77.90.157.1</span></td><td style="color:#9ca3af;font-size:10px">IP</td><td><span class="status-clean">✓ Clean</span></td><td style="font-size:10px;color:#9ca3af">Inet LV</td><td style="font-size:10px;color:#9ca3af">8m</td></tr>
+            <tr><td><span class="ip-addr">213.209.131.3</span></td><td style="color:#9ca3af;font-size:10px">IP</td><td><span class="status-clean">✓ Clean</span></td><td style="font-size:10px;color:#9ca3af">Turk Telekom</td><td style="font-size:10px;color:#9ca3af">12m</td></tr>
+            <tr><td><span class="ip-addr">77.90.163.22</span></td><td style="color:#9ca3af;font-size:10px">IP</td><td><span class="status-listed">● Listed</span></td><td style="font-size:10px;color:#9ca3af">Inet LV</td><td style="font-size:10px;color:#9ca3af">just now</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Set bar heights
+document.querySelectorAll('[data-h]').forEach(el => {
+  el.style.height = el.getAttribute('data-h');
+});
+</script>
+</body>
+</html>

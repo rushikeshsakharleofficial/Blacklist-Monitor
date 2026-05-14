@@ -12,13 +12,6 @@ interface User {
   role: Role | null; permissions: string[];
 }
 
-function badge(text: string, color: string) {
-  return (
-    <span className="text-[10px] font-bold px-2 py-0.5 text-white uppercase tracking-wide"
-      style={{ background: color, borderRadius: 2 }}>{text}</span>
-  );
-}
-
 function fmt(iso: string | null) {
   if (!iso) return '—';
   return new Date(iso).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
@@ -47,44 +40,42 @@ function CreateUserForm({ roles, onCreated, onCancel }: CreateUserFormProps) {
   };
 
   return (
-    <div className="border border-panel-border mb-4">
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-panel-border" style={{ background: '#2c3e50' }}>
-        <Plus size={13} className="text-[#8ab4c8]" />
-        <span className="text-white text-[11px] font-bold uppercase tracking-wider">Create New User</span>
+    <div className="bg-surface border border-border-base rounded-xl overflow-hidden mb-4">
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-border-base">
+        <Plus size={15} className="text-accent" />
+        <span className="text-sm font-semibold text-text-base">Create New User</span>
       </div>
-      <form onSubmit={submit} className="bg-white p-4 grid grid-cols-2 gap-3">
+      <form onSubmit={submit} className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <label className="block text-[10px] font-bold uppercase tracking-wide text-foreground mb-1">Email</label>
+          <label className="text-xs font-semibold text-text-sec uppercase tracking-wide mb-1.5 block">Email</label>
           <input required type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })}
-            className="w-full px-2.5 py-1.5 text-xs border border-panel-border font-mono focus:outline-none focus:border-primary" style={{ borderRadius: 2 }} />
+            className="border border-border-base rounded-lg px-3 py-2 text-sm bg-surface text-text-base font-mono focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent w-full transition-colors" />
         </div>
         <div>
-          <label className="block text-[10px] font-bold uppercase tracking-wide text-foreground mb-1">Full Name</label>
+          <label className="text-xs font-semibold text-text-sec uppercase tracking-wide mb-1.5 block">Full Name</label>
           <input type="text" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
-            className="w-full px-2.5 py-1.5 text-xs border border-panel-border font-mono focus:outline-none focus:border-primary" style={{ borderRadius: 2 }} />
+            className="border border-border-base rounded-lg px-3 py-2 text-sm bg-surface text-text-base focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent w-full transition-colors" />
         </div>
         <div>
-          <label className="block text-[10px] font-bold uppercase tracking-wide text-foreground mb-1">Password (min 8 chars)</label>
+          <label className="text-xs font-semibold text-text-sec uppercase tracking-wide mb-1.5 block">Password (min 8 chars)</label>
           <input required type="password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })}
-            className="w-full px-2.5 py-1.5 text-xs border border-panel-border font-mono focus:outline-none focus:border-primary" style={{ borderRadius: 2 }} />
+            className="border border-border-base rounded-lg px-3 py-2 text-sm bg-surface text-text-base focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent w-full transition-colors" />
         </div>
         <div>
-          <label className="block text-[10px] font-bold uppercase tracking-wide text-foreground mb-1">Role</label>
+          <label className="text-xs font-semibold text-text-sec uppercase tracking-wide mb-1.5 block">Role</label>
           <select value={form.role_id} onChange={e => setForm({ ...form, role_id: Number(e.target.value) })}
-            className="w-full px-2.5 py-1.5 text-xs border border-panel-border focus:outline-none" style={{ borderRadius: 2 }}>
+            className="border border-border-base rounded-lg px-3 py-2 text-sm bg-surface text-text-base focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent w-full transition-colors">
             {roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
           </select>
         </div>
-        {err && <div className="col-span-2 text-danger text-xs">{err}</div>}
+        {err && <div className="col-span-2 text-danger text-sm">{err}</div>}
         <div className="col-span-2 flex gap-2">
           <button type="submit" disabled={loading}
-            className="px-4 py-1.5 text-xs font-bold uppercase text-white border border-[#2a5580] disabled:opacity-50"
-            style={{ background: '#336699', borderRadius: 2 }}>
+            className="px-4 py-2 text-sm font-medium rounded-lg bg-accent text-white hover:bg-accent-hover transition-colors disabled:opacity-50">
             {loading ? 'Creating…' : 'Create User'}
           </button>
           <button type="button" onClick={onCancel}
-            className="px-4 py-1.5 text-xs font-bold uppercase border border-panel-border text-foreground"
-            style={{ borderRadius: 2 }}>
+            className="px-4 py-2 text-sm font-medium rounded-lg border border-border-base text-text-base hover:bg-subtle transition-colors">
             Cancel
           </button>
         </div>
@@ -128,39 +119,40 @@ function UserRow({ user, roles, currentUserId, myPermissions, onRefresh, onDialo
   };
 
   return (
-    <tr className="border-t border-panel-border hover:bg-row-alt">
-      <td className="px-3 py-2">
-        <div className="text-xs font-medium text-foreground">{user.name || '—'}</div>
-        <div className="text-[10px] font-mono text-muted">{user.email}</div>
+    <tr className="border-b border-border-base hover:bg-subtle transition-colors">
+      <td className="px-3 py-2.5">
+        <div className="text-sm font-medium text-text-base">{user.name || '—'}</div>
+        <div className="text-xs font-mono text-text-sec">{user.email}</div>
       </td>
-      <td className="px-3 py-2">
+      <td className="px-3 py-2.5">
         {user.role
-          ? <span className="text-[10px] font-bold px-2 py-0.5 bg-[#1e3a5f] text-[#8ab4c8] uppercase tracking-wide" style={{ borderRadius: 2 }}>{user.role.name}</span>
-          : <span className="text-muted text-xs">—</span>}
+          ? <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-accent-subtle text-accent uppercase">{user.role.name}</span>
+          : <span className="text-text-sec text-sm">—</span>}
       </td>
-      <td className="px-3 py-2">
-        {user.is_active ? badge('Active', '#27ae60') : badge('Inactive', '#7f8c8d')}
+      <td className="px-3 py-2.5">
+        {user.is_active
+          ? <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-success-bg text-success uppercase">Active</span>
+          : <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-subtle text-text-sec uppercase">Inactive</span>}
       </td>
-      <td className="px-3 py-2 text-[10px] text-muted">{fmt(user.last_login)}</td>
-      <td className="px-3 py-2 text-[10px] text-muted">{fmt(user.created_at)}</td>
-      <td className="px-3 py-2">
+      <td className="px-3 py-2.5 text-xs text-text-sec">{fmt(user.last_login)}</td>
+      <td className="px-3 py-2.5 text-xs text-text-sec">{fmt(user.created_at)}</td>
+      <td className="px-3 py-2.5">
         <div className="flex items-center gap-1.5 relative">
           {canSetRole && !isSelf && (
             <div className="relative">
               <button
                 onClick={() => setMenuOpen(v => !v)}
-                className="flex items-center gap-1 px-2 py-1 text-[10px] border border-panel-border bg-white hover:bg-row-alt uppercase font-bold"
-                style={{ borderRadius: 2 }}>
-                Role <ChevronDown size={10} />
+                className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-md border border-border-base bg-surface hover:bg-subtle transition-colors">
+                Role <ChevronDown size={11} />
               </button>
               {menuOpen && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
-                  <div className="absolute right-0 z-20 mt-0.5 border border-panel-border bg-white shadow-sm min-w-[140px]">
+                  <div className="absolute right-0 z-20 mt-1 border border-border-base bg-surface rounded-lg shadow-lg min-w-[140px] overflow-hidden">
                     {roles.map(r => (
                       <button key={r.id} disabled={roleChanging}
                         onClick={() => { changeRole(r.id); setMenuOpen(false); }}
-                        className={`block w-full text-left px-3 py-1.5 text-[10px] uppercase font-bold hover:bg-row-alt disabled:opacity-50 ${user.role?.id === r.id ? 'text-primary' : ''}`}>
+                        className={`block w-full text-left px-3 py-2 text-xs font-medium hover:bg-subtle disabled:opacity-50 transition-colors ${user.role?.id === r.id ? 'text-accent' : 'text-text-base'}`}>
                         {r.name}
                       </button>
                     ))}
@@ -171,18 +163,16 @@ function UserRow({ user, roles, currentUserId, myPermissions, onRefresh, onDialo
           )}
           {canWrite && !isSelf && (
             <button onClick={() => onDialog({ type: 'confirm-deactivate', user })}
-              className="p-1 text-muted hover:text-foreground border border-panel-border bg-white"
-              title={user.is_active ? 'Deactivate' : 'Reactivate'}
-              style={{ borderRadius: 2 }}>
-              {user.is_active ? <UserX size={12} /> : <UserCheck size={12} />}
+              className="p-1.5 text-text-sec hover:text-text-base border border-border-base rounded-md bg-surface hover:bg-subtle transition-colors"
+              title={user.is_active ? 'Deactivate' : 'Reactivate'}>
+              {user.is_active ? <UserX size={13} /> : <UserCheck size={13} />}
             </button>
           )}
           {canResetKey && (
             <button onClick={() => onDialog({ type: 'confirm-reset-key', user })}
-              className="p-1 text-muted hover:text-foreground border border-panel-border bg-white"
-              title="Reset API Key"
-              style={{ borderRadius: 2 }}>
-              <Key size={12} />
+              className="p-1.5 text-text-sec hover:text-text-base border border-border-base rounded-md bg-surface hover:bg-subtle transition-colors"
+              title="Reset API Key">
+              <Key size={13} />
             </button>
           )}
         </div>
@@ -266,32 +256,27 @@ export default function UsersPage() {
         />
       )}
       {dialog?.type === 'show-key' && dialog.user && dialog.apiKey && (
-        <ApiKeyDialog
-          email={dialog.user.email}
-          apiKey={dialog.apiKey}
-          onClose={() => setDialog(null)}
-        />
+        <ApiKeyDialog email={dialog.user.email} apiKey={dialog.apiKey} onClose={() => setDialog(null)} />
       )}
       {dialog?.type === 'error' && (
         <ErrorDialog message={dialog.message || 'An error occurred'} onClose={() => setDialog(null)} />
       )}
 
-      <header className="flex justify-between items-center mb-4 border-b border-panel-border pb-2">
+      <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
         <div>
-          <h1 className="text-base font-bold text-foreground uppercase tracking-wide">User Management</h1>
-          <p className="text-muted text-[11px] mt-0.5">Manage console access and permissions</p>
+          <h1 className="text-lg font-semibold text-text-base">User Management</h1>
+          <p className="text-sm text-text-sec mt-0.5">Manage console access and permissions</p>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={load}
-            className="flex items-center gap-1 px-3 py-1.5 text-xs border border-panel-border bg-white hover:bg-row-alt">
-            <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
+            className="px-3 py-1.5 text-sm font-medium rounded-lg border border-border-base text-text-base hover:bg-subtle transition-colors flex items-center gap-1.5">
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
             Refresh
           </button>
           {canWrite && (
             <button onClick={() => setShowCreate(v => !v)}
-              className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold uppercase text-white border border-[#2a5580]"
-              style={{ background: '#336699', borderRadius: 2 }}>
-              <Plus size={12} />
+              className="px-3 py-1.5 text-sm font-medium rounded-lg bg-accent text-white hover:bg-accent-hover transition-colors flex items-center gap-1.5">
+              <Plus size={14} />
               New User
             </button>
           )}
@@ -302,24 +287,24 @@ export default function UsersPage() {
         <CreateUserForm roles={roles} onCreated={() => { setShowCreate(false); load(); }} onCancel={() => setShowCreate(false)} />
       )}
 
-      <div className="border border-panel-border">
-        <div className="flex items-center gap-2 px-3 py-2 border-b border-panel-border" style={{ background: '#2c3e50' }}>
-          <Users size={13} className="text-[#8ab4c8]" />
-          <span className="text-white text-[11px] font-bold uppercase tracking-wider">All Users</span>
-          <span className="ml-auto text-[#8ab4c8] text-[10px] font-bold">{users.length} TOTAL</span>
+      <div className="bg-surface border border-border-base rounded-xl overflow-hidden">
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-border-base">
+          <Users size={15} className="text-accent" />
+          <span className="text-sm font-semibold text-text-base">All Users</span>
+          <span className="ml-auto text-text-sec text-xs font-semibold">{users.length} total</span>
         </div>
         {loading ? (
-          <div className="bg-white px-4 py-8 text-center text-muted text-xs">Loading…</div>
+          <div className="px-4 py-10 text-center text-text-sec text-sm">Loading…</div>
         ) : (
-          <table className="w-full text-xs border-collapse">
+          <table className="w-full text-sm border-collapse">
             <thead>
-              <tr className="bg-row-alt border-b border-panel-border">
-                <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wide text-muted">User</th>
-                <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wide text-muted">Role</th>
-                <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wide text-muted">Status</th>
-                <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wide text-muted">Last Login</th>
-                <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wide text-muted">Created</th>
-                <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wide text-muted">Actions</th>
+              <tr className="bg-subtle">
+                <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec px-3 py-2.5 border-b border-border-base text-left">User</th>
+                <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec px-3 py-2.5 border-b border-border-base text-left">Role</th>
+                <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec px-3 py-2.5 border-b border-border-base text-left">Status</th>
+                <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec px-3 py-2.5 border-b border-border-base text-left">Last Login</th>
+                <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec px-3 py-2.5 border-b border-border-base text-left">Created</th>
+                <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec px-3 py-2.5 border-b border-border-base text-left">Actions</th>
               </tr>
             </thead>
             <tbody>

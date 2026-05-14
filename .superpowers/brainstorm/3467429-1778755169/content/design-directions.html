@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Design Direction — Blacklist Monitor</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0f1117; color: #e0e0e0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 24px; }
+  h1 { font-size: 18px; font-weight: 700; color: #fff; margin-bottom: 6px; letter-spacing: 0.02em; }
+  .sub { font-size: 13px; color: #888; margin-bottom: 28px; }
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  .card { border-radius: 10px; overflow: hidden; cursor: pointer; border: 2px solid transparent; transition: border-color 0.2s, transform 0.15s; }
+  .card:hover { transform: translateY(-3px); }
+  .card.selected { border-color: #7c6af7; }
+  .card-label { padding: 14px 16px 12px; font-size: 13px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
+  .card-desc { padding: 0 16px 14px; font-size: 12px; line-height: 1.5; }
+  .tag { display: inline-block; font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 20px; margin-top: 8px; }
+  /* MOCKUP STYLES */
+  .mock { width: 100%; height: 320px; position: relative; overflow: hidden; }
+
+  /* OPTION A — Sentry Dark */
+  .mock-a { background: #1a1a1a; }
+  .mock-a .nav { background: #1f1f1f; border-bottom: 1px solid #2e2e2e; padding: 0 16px; height: 44px; display: flex; align-items: center; gap: 20px; }
+  .mock-a .logo { font-size: 13px; font-weight: 800; color: #f55; letter-spacing: -0.5px; }
+  .mock-a .nav-item { font-size: 11px; color: #777; }
+  .mock-a .nav-item.active { color: #e0e0e0; }
+  .mock-a .body { display: grid; grid-template-columns: 140px 1fr; height: calc(100% - 44px); }
+  .mock-a .sidebar { background: #161616; border-right: 1px solid #2a2a2a; padding: 12px 10px; }
+  .mock-a .si { font-size: 10px; color: #555; padding: 5px 8px; border-radius: 4px; margin-bottom: 2px; }
+  .mock-a .si.active { background: #2a1f1f; color: #f77; }
+  .mock-a .main { padding: 12px; }
+  .mock-a .stat-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 8px; margin-bottom: 10px; }
+  .mock-a .stat { background: #1f1f1f; border: 1px solid #2e2e2e; border-radius: 6px; padding: 10px; }
+  .mock-a .stat-n { font-size: 20px; font-weight: 800; font-family: monospace; }
+  .mock-a .stat-l { font-size: 9px; color: #666; text-transform: uppercase; margin-top: 2px; }
+  .mock-a .table-h { background: #222; border-radius: 6px; padding: 8px 10px; font-size: 9px; color: #555; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px; display: grid; grid-template-columns: 1fr 80px 60px 60px; }
+  .mock-a .row { padding: 6px 10px; font-size: 10px; background: #1c1c1c; border-radius: 4px; margin-bottom: 2px; display: grid; grid-template-columns: 1fr 80px 60px 60px; align-items: center; }
+  .mock-a .badge { font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 3px; display: inline-block; }
+  .mock-a .listed { background: rgba(255,50,50,0.15); color: #f55; }
+  .mock-a .clean { background: rgba(50,200,100,0.1); color: #4c8; }
+  .mock-a .ip { font-family: monospace; font-size: 11px; color: #ddd; }
+
+  /* OPTION B — VoltAgent Emerald */
+  .mock-b { background: #000; }
+  .mock-b .nav { background: #000; border-bottom: 1px solid #111; padding: 0 16px; height: 44px; display: flex; align-items: center; gap: 24px; }
+  .mock-b .logo { font-size: 13px; font-weight: 900; color: #10b981; letter-spacing: -0.5px; font-family: 'JetBrains Mono', monospace; }
+  .mock-b .nav-item { font-size: 11px; color: #444; font-family: monospace; }
+  .mock-b .nav-item.active { color: #10b981; }
+  .mock-b .body { display: grid; grid-template-columns: 140px 1fr; height: calc(100% - 44px); }
+  .mock-b .sidebar { background: #030303; border-right: 1px solid #111; padding: 12px 10px; }
+  .mock-b .si { font-size: 10px; color: #333; padding: 5px 8px; border-radius: 3px; margin-bottom: 2px; font-family: monospace; }
+  .mock-b .si.active { background: rgba(16,185,129,0.08); color: #10b981; border-left: 2px solid #10b981; padding-left: 6px; }
+  .mock-b .main { padding: 12px; }
+  .mock-b .stat-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 8px; margin-bottom: 10px; }
+  .mock-b .stat { background: #050505; border: 1px solid #111; border-radius: 6px; padding: 10px; }
+  .mock-b .stat-n { font-size: 20px; font-weight: 900; font-family: 'JetBrains Mono', monospace; }
+  .mock-b .stat-l { font-size: 9px; color: #333; text-transform: uppercase; letter-spacing: 0.1em; margin-top: 2px; }
+  .mock-b .table-h { background: #0a0a0a; border-radius: 4px; padding: 6px 10px; font-size: 9px; color: #333; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 3px; display: grid; grid-template-columns: 1fr 80px 60px 60px; }
+  .mock-b .row { padding: 6px 10px; font-size: 10px; border-bottom: 1px solid #0a0a0a; display: grid; grid-template-columns: 1fr 80px 60px 60px; align-items: center; }
+  .mock-b .badge { font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 2px; display: inline-block; font-family: monospace; }
+  .mock-b .listed { border: 1px solid rgba(255,50,50,0.3); color: #f55; }
+  .mock-b .clean { border: 1px solid rgba(16,185,129,0.3); color: #10b981; }
+  .mock-b .ip { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #888; }
+
+  /* OPTION C — Linear Minimal */
+  .mock-c { background: #fafafa; }
+  .mock-c .nav { background: #fff; border-bottom: 1px solid #f0f0f0; padding: 0 16px; height: 44px; display: flex; align-items: center; gap: 24px; }
+  .mock-c .logo { font-size: 13px; font-weight: 800; color: #1a1a1a; letter-spacing: -0.5px; }
+  .mock-c .nav-item { font-size: 11px; color: #aaa; }
+  .mock-c .nav-item.active { color: #5e6ad2; font-weight: 600; }
+  .mock-c .body { display: grid; grid-template-columns: 148px 1fr; height: calc(100% - 44px); }
+  .mock-c .sidebar { background: #fff; border-right: 1px solid #f0f0f0; padding: 12px 10px; }
+  .mock-c .si { font-size: 11px; color: #aaa; padding: 5px 8px; border-radius: 5px; margin-bottom: 1px; }
+  .mock-c .si.active { background: #f3f3fc; color: #5e6ad2; font-weight: 600; }
+  .mock-c .main { padding: 14px; background: #fafafa; }
+  .mock-c .stat-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 8px; margin-bottom: 12px; }
+  .mock-c .stat { background: #fff; border: 1px solid #ebebeb; border-radius: 8px; padding: 10px; }
+  .mock-c .stat-n { font-size: 20px; font-weight: 700; color: #1a1a1a; }
+  .mock-c .stat-l { font-size: 9px; color: #aaa; text-transform: uppercase; letter-spacing: 0.08em; margin-top: 2px; }
+  .mock-c .table-h { padding: 5px 10px; font-size: 9px; color: #bbb; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 2px; display: grid; grid-template-columns: 1fr 80px 60px 60px; }
+  .mock-c .row { padding: 7px 10px; font-size: 10px; background: #fff; border: 1px solid #f0f0f0; border-radius: 6px; margin-bottom: 3px; display: grid; grid-template-columns: 1fr 80px 60px 60px; align-items: center; }
+  .mock-c .badge { font-size: 9px; font-weight: 600; padding: 2px 7px; border-radius: 20px; display: inline-block; }
+  .mock-c .listed { background: #fef2f2; color: #dc2626; }
+  .mock-c .clean { background: #f0fdf4; color: #16a34a; }
+  .mock-c .ip { font-family: monospace; font-size: 11px; color: #374151; }
+
+  .card-bg-a { background: #161616; }
+  .card-bg-b { background: #050505; }
+  .card-bg-c { background: #fff; }
+  .tag-a { background: rgba(255,50,50,0.1); color: #f55; }
+  .tag-b { background: rgba(16,185,129,0.1); color: #10b981; }
+  .tag-c { background: rgba(94,106,210,0.1); color: #5e6ad2; }
+
+  .sel-btn { margin-top: 10px; width: 100%; padding: 8px; border: none; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; background: #222; color: #999; transition: all 0.15s; }
+  .selected .sel-btn { background: #7c6af7; color: #fff; }
+</style>
+</head>
+<body>
+<h1>Choose your design direction</h1>
+<p class="sub">Three distinct UI styles for the Blacklist Monitor — click a card to select</p>
+
+<div class="cards">
+  <!-- OPTION A -->
+  <div class="card card-bg-a" id="card-a" onclick="select('a')">
+    <div class="mock mock-a">
+      <div class="nav">
+        <span class="logo">⚡ GUARDLY</span>
+        <span class="nav-item">Dashboard</span>
+        <span class="nav-item active">Problems</span>
+        <span class="nav-item">Reports</span>
+      </div>
+      <div class="body">
+        <div class="sidebar">
+          <div class="si active">🔴 Problems</div>
+          <div class="si">📡 Monitored</div>
+          <div class="si">🔍 Scanner</div>
+          <div class="si">📊 Reports</div>
+          <div class="si">🔔 Alerts</div>
+          <div class="si">⚙️ Settings</div>
+        </div>
+        <div class="main">
+          <div class="stat-row">
+            <div class="stat"><div class="stat-n" style="color:#f55">1,806</div><div class="stat-l">Listed</div></div>
+            <div class="stat"><div class="stat-n" style="color:#4c8">5,899</div><div class="stat-l">Clean</div></div>
+            <div class="stat"><div class="stat-n" style="color:#fa0">23.4%</div><div class="stat-l">Hit rate</div></div>
+            <div class="stat"><div class="stat-n" style="color:#aaf">52</div><div class="stat-l">DNSBLs</div></div>
+          </div>
+          <div class="table-h"><span>IP Address</span><span>Subnet</span><span>Hits</span><span>Status</span></div>
+          <div class="row"><span class="ip">77.90.141.5</span><span style="font-size:9px;color:#666">77.90.141/24</span><span style="color:#f55;font-family:monospace">4/52</span><span><span class="badge listed">LISTED</span></span></div>
+          <div class="row"><span class="ip">77.90.142.18</span><span style="font-size:9px;color:#666">77.90.142/24</span><span style="color:#f55;font-family:monospace">2/52</span><span><span class="badge listed">LISTED</span></span></div>
+          <div class="row"><span class="ip">213.209.131.3</span><span style="font-size:9px;color:#666">213.209.131/24</span><span style="color:#4c8;font-family:monospace">0/52</span><span><span class="badge clean">CLEAN</span></span></div>
+          <div class="row"><span class="ip">77.90.163.22</span><span style="font-size:9px;color:#666">77.90.163/24</span><span style="color:#f55;font-family:monospace">7/52</span><span><span class="badge listed">LISTED</span></span></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-label" style="color:#f55">A — Sentry Dark</div>
+    <div class="card-desc" style="color:#888">Dense, data-heavy dark dashboard. Red alert accents. Familiar to engineers monitoring production systems. High information density with clear hierarchy.</div>
+    <span class="tag tag-a">Data-dense · Red alerts · Professional</span>
+    <button class="sel-btn" id="btn-a">Select A</button>
+  </div>
+
+  <!-- OPTION B -->
+  <div class="card card-bg-b" id="card-b" onclick="select('b')">
+    <div class="mock mock-b">
+      <div class="nav">
+        <span class="logo">▸ GUARDLY</span>
+        <span class="nav-item active">problems</span>
+        <span class="nav-item">monitored</span>
+        <span class="nav-item">scanner</span>
+      </div>
+      <div class="body">
+        <div class="sidebar">
+          <div class="si active">problems</div>
+          <div class="si">monitored</div>
+          <div class="si">scanner</div>
+          <div class="si">reports</div>
+          <div class="si">alerts</div>
+          <div class="si">settings</div>
+        </div>
+        <div class="main">
+          <div class="stat-row">
+            <div class="stat"><div class="stat-n" style="color:#f55">1806</div><div class="stat-l">listed</div></div>
+            <div class="stat"><div class="stat-n" style="color:#10b981">5899</div><div class="stat-l">clean</div></div>
+            <div class="stat"><div class="stat-n" style="color:#f59e0b">23.4%</div><div class="stat-l">hit_rate</div></div>
+            <div class="stat"><div class="stat-n" style="color:#6366f1">52</div><div class="stat-l">dnsbl_zones</div></div>
+          </div>
+          <div class="table-h"><span>address</span><span>subnet</span><span>hits</span><span>status</span></div>
+          <div class="row"><span class="ip">77.90.141.5</span><span style="font-size:9px;color:#333">77.90.141.0/24</span><span style="color:#f55;font-family:monospace;font-size:9px">4/52</span><span><span class="badge listed">LISTED</span></span></div>
+          <div class="row"><span class="ip">77.90.142.18</span><span style="font-size:9px;color:#333">77.90.142.0/24</span><span style="color:#f55;font-family:monospace;font-size:9px">2/52</span><span><span class="badge listed">LISTED</span></span></div>
+          <div class="row"><span class="ip">213.209.131.3</span><span style="font-size:9px;color:#333">213.209.131.0/24</span><span style="color:#10b981;font-family:monospace;font-size:9px">0/52</span><span><span class="badge clean">CLEAN</span></span></div>
+          <div class="row"><span class="ip">77.90.163.22</span><span style="font-size:9px;color:#333">77.90.163.0/24</span><span style="color:#f55;font-family:monospace;font-size:9px">7/52</span><span><span class="badge listed">LISTED</span></span></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-label" style="color:#10b981">B — VoltAgent Terminal</div>
+    <div class="card-desc" style="color:#555">Void-black canvas, emerald green accents, monospace everywhere. Terminal-native feel. Zero decoration. Maximum signal-to-noise for security engineers.</div>
+    <span class="tag tag-b">Terminal · Emerald · Zero friction</span>
+    <button class="sel-btn" id="btn-b">Select B</button>
+  </div>
+
+  <!-- OPTION C -->
+  <div class="card card-bg-c" id="card-c" onclick="select('c')">
+    <div class="mock mock-c">
+      <div class="nav">
+        <span class="logo" style="color:#5e6ad2">Guardly</span>
+        <span class="nav-item">Dashboard</span>
+        <span class="nav-item active">Problems</span>
+        <span class="nav-item">Reports</span>
+      </div>
+      <div class="body">
+        <div class="sidebar">
+          <div class="si active">Problems</div>
+          <div class="si">Monitored</div>
+          <div class="si">Scanner</div>
+          <div class="si">Reports</div>
+          <div class="si">Alerts</div>
+          <div class="si">Settings</div>
+        </div>
+        <div class="main">
+          <div class="stat-row">
+            <div class="stat"><div class="stat-n" style="color:#dc2626">1,806</div><div class="stat-l">Listed Now</div></div>
+            <div class="stat"><div class="stat-n" style="color:#16a34a">5,899</div><div class="stat-l">Clean</div></div>
+            <div class="stat"><div class="stat-n" style="color:#d97706">23.4%</div><div class="stat-l">Hit Rate</div></div>
+            <div class="stat"><div class="stat-n" style="color:#5e6ad2">52</div><div class="stat-l">DNSBL Zones</div></div>
+          </div>
+          <div class="table-h"><span>IP Address</span><span>Subnet</span><span>Hits</span><span>Status</span></div>
+          <div class="row"><span class="ip">77.90.141.5</span><span style="font-size:9px;color:#aaa">77.90.141.0/24</span><span style="color:#dc2626;font-family:monospace">4/52</span><span><span class="badge listed">LISTED</span></span></div>
+          <div class="row"><span class="ip">77.90.142.18</span><span style="font-size:9px;color:#aaa">77.90.142.0/24</span><span style="color:#dc2626;font-family:monospace">2/52</span><span><span class="badge listed">LISTED</span></span></div>
+          <div class="row"><span class="ip">213.209.131.3</span><span style="font-size:9px;color:#aaa">213.209.131.0/24</span><span style="color:#16a34a;font-family:monospace">0/52</span><span><span class="badge clean">CLEAN</span></span></div>
+          <div class="row"><span class="ip">77.90.163.22</span><span style="font-size:9px;color:#aaa">77.90.163.0/24</span><span style="color:#dc2626;font-family:monospace">7/52</span><span><span class="badge listed">LISTED</span></span></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-label" style="color:#5e6ad2">C — Linear Minimal</div>
+    <div class="card-desc" style="color:#666">Light, ultra-clean, precision spacing. Purple accent. No visual noise. Feels like a premium SaaS product. Easy to scan at a glance.</div>
+    <span class="tag tag-c">Minimal · Purple · Premium SaaS</span>
+    <button class="sel-btn" id="btn-c">Select C</button>
+  </div>
+</div>
+
+<script>
+  let selected = null;
+  function select(id) {
+    ['a','b','c'].forEach(x => {
+      document.getElementById('card-'+x).classList.remove('selected');
+      document.getElementById('btn-'+x).textContent = 'Select ' + x.toUpperCase();
+    });
+    document.getElementById('card-'+id).classList.add('selected');
+    document.getElementById('btn-'+id).textContent = '✓ Selected';
+    selected = id;
+    // Record selection
+    fetch('/select', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({choice: id, text: document.getElementById('card-'+id).querySelector('.card-label').textContent})}).catch(()=>{});
+  }
+</script>
+</body>
+</html>

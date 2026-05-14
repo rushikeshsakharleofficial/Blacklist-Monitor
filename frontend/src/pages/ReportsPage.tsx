@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { BarChart2, Download, RefreshCw, TrendingUp, Shield, AlertTriangle, CheckCircle, Activity } from 'lucide-react';
+import { Download, RefreshCw, Shield, AlertTriangle, CheckCircle, Activity } from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001';
 const STORAGE_KEY = 'api_key';
@@ -25,44 +25,39 @@ function fmtDate(iso: string | null) {
   return new Date(iso).toLocaleString();
 }
 
-// Pure-SVG horizontal bar
-function HBar({ value, max, color = '#336699', height = 16 }: { value: number; max: number; color?: string; height?: number }) {
+function HBar({ value, max, color = 'var(--accent)', height = 16 }: { value: number; max: number; color?: string; height?: number }) {
   const pct = max ? Math.max(2, (value / max) * 100) : 0;
   return (
-    <div className="flex-1 bg-row-alt border border-panel-border overflow-hidden" style={{ height, borderRadius: 2 }}>
+    <div className="flex-1 bg-subtle border border-border-base overflow-hidden rounded" style={{ height }}>
       <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: 2, transition: 'width 0.4s' }} />
     </div>
   );
 }
 
-// SVG vertical bar chart (30-day daily)
 function DailyChart({ data }: { data: DailyRow[] }) {
-  if (!data.length) return <div className="text-muted text-xs text-center py-6">No check data yet</div>;
+  if (!data.length) return <div className="text-text-sec text-sm text-center py-6">No check data yet</div>;
   const maxChecks = Math.max(...data.map(d => d.checks), 1);
   const W = 720, H = 100, BAR_W = Math.max(4, Math.floor((W - 40) / data.length) - 2);
   const x = (i: number) => 40 + i * ((W - 40) / data.length) + (((W - 40) / data.length) - BAR_W) / 2;
   return (
     <svg width="100%" viewBox={`0 0 ${W} ${H + 24}`} style={{ display: 'block' }}>
-      {/* Y gridlines */}
       {[0, 0.5, 1].map(f => (
-        <line key={f} x1={40} y1={H * (1 - f)} x2={W} y2={H * (1 - f)} stroke="#eee" strokeWidth={1} />
+        <line key={f} x1={40} y1={H * (1 - f)} x2={W} y2={H * (1 - f)} stroke="var(--border)" strokeWidth={1} />
       ))}
-      {/* Bars */}
       {data.map((d, i) => {
         const barH = Math.max(2, (d.checks / maxChecks) * H);
         const listedH = Math.max(0, (d.listed / maxChecks) * H);
         return (
           <g key={d.day}>
-            <rect x={x(i)} y={H - barH} width={BAR_W} height={barH} fill="#336699" opacity={0.7} rx={1} />
-            {d.listed > 0 && <rect x={x(i)} y={H - listedH} width={BAR_W} height={listedH} fill="#e74c3c" opacity={0.9} rx={1} />}
+            <rect x={x(i)} y={H - barH} width={BAR_W} height={barH} fill="var(--accent)" opacity={0.7} rx={1} />
+            {d.listed > 0 && <rect x={x(i)} y={H - listedH} width={BAR_W} height={listedH} fill="var(--danger)" opacity={0.9} rx={1} />}
           </g>
         );
       })}
-      {/* X axis date labels (every 5 days) */}
       {data.filter((_, i) => i % 5 === 0 || i === data.length - 1).map((d) => {
         const i = data.indexOf(d);
         return (
-          <text key={d.day} x={x(i) + BAR_W / 2} y={H + 16} textAnchor="middle" fontSize={9} fill="#888">
+          <text key={d.day} x={x(i) + BAR_W / 2} y={H + 16} textAnchor="middle" fontSize={9} fill="var(--text-muted)">
             {d.day.slice(5)}
           </text>
         );
@@ -112,9 +107,7 @@ export default function ReportsPage() {
   const downloadCSV = async () => {
     setDownloading(true);
     try {
-      const res = await axios.get(`${API_BASE_URL}/reports/export-csv`, {
-        headers, responseType: 'blob',
-      });
+      const res = await axios.get(`${API_BASE_URL}/reports/export-csv`, { headers, responseType: 'blob' });
       const url = URL.createObjectURL(res.data);
       const a = document.createElement('a');
       a.href = url; a.download = 'blacklisted_ips.csv'; a.click();
@@ -128,44 +121,42 @@ export default function ReportsPage() {
 
   return (
     <div>
-      <header className="flex justify-between items-center mb-4 border-b border-panel-border pb-2">
+      <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
         <div>
-          <h1 className="text-base font-bold text-foreground uppercase tracking-wide">Reports & Analytics</h1>
-          <p className="text-muted text-[11px] mt-0.5">30-day trends, DNSBL breakdown, listing events</p>
+          <h1 className="text-lg font-semibold text-text-base">Reports &amp; Analytics</h1>
+          <p className="text-sm text-text-sec mt-0.5">30-day trends, DNSBL breakdown, listing events</p>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={load} disabled={loading}
-            className="flex items-center gap-1 px-3 py-1.5 text-xs border border-panel-border bg-white hover:bg-row-alt disabled:opacity-60"
-            style={{ borderRadius: 2 }}>
-            <RefreshCw size={12} className={loading ? 'animate-spin' : ''} /> Refresh
+            className="px-3 py-1.5 text-sm font-medium rounded-lg border border-border-base text-text-base hover:bg-subtle transition-colors flex items-center gap-1.5 disabled:opacity-60">
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Refresh
           </button>
           <button onClick={downloadCSV} disabled={downloading || !summary?.listed_now}
-            className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-white border border-[#1a6b3c] disabled:opacity-60"
-            style={{ background: '#27ae60', borderRadius: 2 }}>
-            <Download size={12} /> Export Listed IPs CSV
+            className="px-3 py-1.5 text-sm font-medium rounded-lg bg-success text-white hover:opacity-90 transition-opacity flex items-center gap-1.5 disabled:opacity-60">
+            <Download size={14} /> Export Listed IPs CSV
           </button>
         </div>
       </header>
 
-      {error && <div className="border border-danger bg-danger-bg text-danger px-4 py-2 mb-4 text-xs">{error}</div>}
+      {error && (
+        <div className="rounded-lg border border-danger/30 bg-danger-bg text-danger px-4 py-3 mb-4 text-sm">{error}</div>
+      )}
 
       {/* KPI Cards */}
       {summary && (
-        <div className="grid grid-cols-4 gap-2 mb-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
           {[
-            { label: 'Total Monitored', value: summary.total_targets.toLocaleString(), icon: Shield, color: '#336699' },
-            { label: 'Listed Now', value: summary.listed_now.toLocaleString(), icon: AlertTriangle, color: '#e74c3c' },
-            { label: 'Clean Now', value: summary.clean_now.toLocaleString(), icon: CheckCircle, color: '#27ae60' },
-            { label: 'Checks (30d)', value: summary.checks_30d.toLocaleString(), icon: Activity, color: '#f39c12' },
+            { label: 'Total Monitored', value: summary.total_targets.toLocaleString(), icon: Shield, color: 'var(--accent)' },
+            { label: 'Listed Now', value: summary.listed_now.toLocaleString(), icon: AlertTriangle, color: 'var(--danger)' },
+            { label: 'Clean Now', value: summary.clean_now.toLocaleString(), icon: CheckCircle, color: 'var(--success)' },
+            { label: 'Checks (30d)', value: summary.checks_30d.toLocaleString(), icon: Activity, color: 'var(--warning)' },
           ].map(({ label, value, icon: Icon, color }) => (
-            <div key={label} className="bg-white border border-panel-border" style={{ borderLeft: `4px solid ${color}` }}>
-              <div className="px-4 py-3 flex items-center justify-between">
-                <div>
-                  <div className="text-[10px] uppercase font-bold tracking-wider text-muted">{label}</div>
-                  <div className="text-2xl font-bold mt-0.5 font-mono text-foreground">{value}</div>
-                </div>
-                <Icon size={22} style={{ color }} className="opacity-30" />
+            <div key={label} className="bg-surface border border-border-base rounded-xl p-4 flex items-start justify-between">
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-wide text-text-sec mb-1">{label}</div>
+                <div className="text-2xl font-bold font-mono text-text-base">{value}</div>
               </div>
+              <Icon size={20} style={{ color }} className="opacity-60 mt-0.5 shrink-0" />
             </div>
           ))}
         </div>
@@ -173,50 +164,50 @@ export default function ReportsPage() {
 
       {/* Secondary KPIs */}
       {summary && (
-        <div className="grid grid-cols-3 gap-2 mb-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
           {[
             { label: '% Listed', value: `${summary.pct_listed}%`, sub: 'of all monitored IPs' },
             { label: 'Avg Checks / Day', value: summary.avg_checks_per_day.toLocaleString(), sub: 'last 30 days' },
             { label: 'Listing Events (30d)', value: summary.listing_events_30d.toLocaleString(), sub: 'clean → listed transitions' },
           ].map(({ label, value, sub }) => (
-            <div key={label} className="bg-white border border-panel-border px-4 py-3">
-              <div className="text-[10px] uppercase font-bold tracking-wider text-muted">{label}</div>
-              <div className="text-xl font-bold font-mono text-foreground mt-0.5">{value}</div>
-              <div className="text-[10px] text-muted mt-0.5">{sub}</div>
+            <div key={label} className="bg-surface border border-border-base rounded-xl px-4 py-3">
+              <div className="text-xs font-semibold uppercase tracking-wide text-text-sec">{label}</div>
+              <div className="text-xl font-bold font-mono text-text-base mt-0.5">{value}</div>
+              <div className="text-xs text-text-muted mt-0.5">{sub}</div>
             </div>
           ))}
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-3 mb-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
         {/* Daily checks chart */}
-        <div className="border border-panel-border">
-          <div className="px-3 py-2 border-b border-panel-border flex items-center justify-between" style={{ background: '#2c3e50' }}>
-            <span className="text-white text-[11px] font-bold uppercase tracking-wider">Daily Check Activity (30d)</span>
-            <div className="flex items-center gap-3 text-[10px] text-[#8ab4c8]">
-              <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-sm" style={{ background: '#336699' }}></span> Total checks</span>
-              <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-sm" style={{ background: '#e74c3c' }}></span> Listed</span>
+        <div className="bg-surface border border-border-base rounded-xl overflow-hidden">
+          <div className="px-4 py-3 border-b border-border-base flex items-center justify-between">
+            <span className="text-sm font-semibold text-text-base">Daily Check Activity (30d)</span>
+            <div className="flex items-center gap-3 text-xs text-text-sec">
+              <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-sm" style={{ background: 'var(--accent)' }}></span> Total checks</span>
+              <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-sm" style={{ background: 'var(--danger)' }}></span> Listed</span>
             </div>
           </div>
-          <div className="bg-white px-3 py-3">
-            {loading ? <div className="text-muted text-xs text-center py-6">Loading…</div> : <DailyChart data={daily} />}
+          <div className="px-3 py-3">
+            {loading ? <div className="text-text-sec text-sm text-center py-6">Loading…</div> : <DailyChart data={daily} />}
           </div>
         </div>
 
         {/* Top DNSBL zones */}
-        <div className="border border-panel-border">
-          <div className="px-3 py-2 border-b border-panel-border" style={{ background: '#2c3e50' }}>
-            <span className="text-white text-[11px] font-bold uppercase tracking-wider">Top DNSBL Zones</span>
+        <div className="bg-surface border border-border-base rounded-xl overflow-hidden">
+          <div className="px-4 py-3 border-b border-border-base">
+            <span className="text-sm font-semibold text-text-base">Top DNSBL Zones</span>
           </div>
-          <div className="bg-white divide-y divide-panel-border">
-            {loading ? <div className="text-muted text-xs text-center py-6">Loading…</div>
-              : dnsbls.length === 0 ? <div className="text-muted text-xs text-center py-6">No data yet — checks may be running</div>
+          <div className="divide-y divide-border-base">
+            {loading ? <div className="text-text-sec text-sm text-center py-6">Loading…</div>
+              : dnsbls.length === 0 ? <div className="text-text-sec text-sm text-center py-6">No data yet — checks may be running</div>
               : dnsbls.map((d, i) => (
-              <div key={d.zone} className="flex items-center gap-3 px-3 py-2">
-                <span className="text-[11px] font-bold text-muted w-5 text-right">{i + 1}</span>
-                <span className="font-mono text-[11px] text-foreground w-48 truncate flex-shrink-0">{d.zone}</span>
-                <HBar value={d.hits} max={maxDnsbl} color="#e74c3c" />
-                <span className="font-mono text-[11px] font-bold text-danger w-12 text-right">{d.hits.toLocaleString()}</span>
+              <div key={d.zone} className="flex items-center gap-3 px-4 py-2">
+                <span className="text-xs font-semibold text-text-sec w-5 text-right">{i + 1}</span>
+                <span className="font-mono text-sm text-text-base w-48 truncate flex-shrink-0">{d.zone}</span>
+                <HBar value={d.hits} max={maxDnsbl} color="var(--danger)" />
+                <span className="font-mono text-sm font-semibold text-danger w-12 text-right">{d.hits.toLocaleString()}</span>
               </div>
             ))}
           </div>
@@ -224,58 +215,58 @@ export default function ReportsPage() {
       </div>
 
       {/* Subnet breakdown */}
-      <div className="border border-panel-border mb-3">
-        <div className="px-3 py-2 border-b border-panel-border flex items-center justify-between" style={{ background: '#2c3e50' }}>
-          <span className="text-white text-[11px] font-bold uppercase tracking-wider">Listed IPs by Subnet (/24)</span>
-          <span className="text-[#8ab4c8] text-[10px]">Top {Math.min(subnets.length, 50)}</span>
+      <div className="bg-surface border border-border-base rounded-xl overflow-hidden mb-3">
+        <div className="px-4 py-3 border-b border-border-base flex items-center justify-between">
+          <span className="text-sm font-semibold text-text-base">Listed IPs by Subnet (/24)</span>
+          <span className="text-text-sec text-xs">Top {Math.min(subnets.length, 50)}</span>
         </div>
-        <div className="bg-white divide-y divide-panel-border">
-          {loading ? <div className="text-muted text-xs text-center py-6">Loading…</div>
-            : subnets.length === 0 ? <div className="text-muted text-xs text-center py-6">No listed IPs found</div>
+        <div className="divide-y divide-border-base">
+          {loading ? <div className="text-text-sec text-sm text-center py-6">Loading…</div>
+            : subnets.length === 0 ? <div className="text-text-sec text-sm text-center py-6">No listed IPs found</div>
             : subnets.slice(0, 25).map((s, i) => (
-            <div key={s.subnet} className="flex items-center gap-3 px-3 py-1.5">
-              <span className="text-[11px] font-bold text-muted w-5 text-right">{i + 1}</span>
-              <span className="font-mono text-[11px] font-bold text-foreground w-36 flex-shrink-0">{s.subnet}</span>
-              <HBar value={s.listed} max={maxSubnet} color="#336699" height={14} />
-              <span className="font-mono text-[11px] font-bold text-foreground w-10 text-right">{s.listed}</span>
+            <div key={s.subnet} className="flex items-center gap-3 px-4 py-1.5">
+              <span className="text-xs font-semibold text-text-sec w-5 text-right">{i + 1}</span>
+              <span className="font-mono text-sm font-semibold text-text-base w-36 flex-shrink-0">{s.subnet}</span>
+              <HBar value={s.listed} max={maxSubnet} color="var(--accent)" height={14} />
+              <span className="font-mono text-sm font-semibold text-text-base w-10 text-right">{s.listed}</span>
             </div>
           ))}
         </div>
       </div>
 
       {/* Listing events */}
-      <div className="border border-panel-border">
-        <div className="px-3 py-2 border-b border-panel-border" style={{ background: '#2c3e50' }}>
-          <span className="text-white text-[11px] font-bold uppercase tracking-wider">Recent Listing Events</span>
-          <span className="text-[#8ab4c8] text-[10px] ml-2">last 100 clean → listed transitions</span>
+      <div className="bg-surface border border-border-base rounded-xl overflow-hidden">
+        <div className="px-4 py-3 border-b border-border-base">
+          <span className="text-sm font-semibold text-text-base">Recent Listing Events</span>
+          <span className="text-text-sec text-xs ml-2">last 100 clean → listed transitions</span>
         </div>
-        {loading ? <div className="text-muted text-xs text-center py-6">Loading…</div>
-          : events.length === 0 ? <div className="bg-white text-muted text-xs text-center py-6">No listing events recorded</div>
+        {loading ? <div className="text-text-sec text-sm text-center py-6">Loading…</div>
+          : events.length === 0 ? <div className="text-text-sec text-sm text-center py-6">No listing events recorded</div>
           : (
-          <table className="w-full text-xs border-collapse">
+          <table className="w-full text-sm border-collapse">
             <thead>
-              <tr style={{ background: '#2c3e50', color: 'white' }}>
-                <th className="px-3 py-2 text-left text-[10px] uppercase font-bold tracking-wide border border-[#3d5166]">IP / Domain</th>
-                <th className="px-3 py-2 text-left text-[10px] uppercase font-bold tracking-wide border border-[#3d5166] w-20">From</th>
-                <th className="px-3 py-2 text-left text-[10px] uppercase font-bold tracking-wide border border-[#3d5166] w-20">To</th>
-                <th className="px-3 py-2 text-left text-[10px] uppercase font-bold tracking-wide border border-[#3d5166] w-24">Notified</th>
-                <th className="px-3 py-2 text-left text-[10px] uppercase font-bold tracking-wide border border-[#3d5166] w-36">Detected At</th>
+              <tr className="bg-subtle">
+                <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec px-3 py-2.5 border-b border-border-base text-left">IP / Domain</th>
+                <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec px-3 py-2.5 border-b border-border-base text-left w-20">From</th>
+                <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec px-3 py-2.5 border-b border-border-base text-left w-20">To</th>
+                <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec px-3 py-2.5 border-b border-border-base text-left w-24">Notified</th>
+                <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec px-3 py-2.5 border-b border-border-base text-left w-36">Detected At</th>
               </tr>
             </thead>
             <tbody>
               {events.map((e, i) => (
-                <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-row-alt'}>
-                  <td className="px-3 py-1.5 border border-panel-border font-mono font-bold text-foreground">{e.address}</td>
-                  <td className="px-3 py-1.5 border border-panel-border">
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 text-white uppercase" style={{ background: '#27ae60', borderRadius: 2 }}>{e.from_status}</span>
+                <tr key={i} className="border-b border-border-base hover:bg-subtle transition-colors">
+                  <td className="px-3 py-2.5 font-mono font-semibold text-text-base">{e.address}</td>
+                  <td className="px-3 py-2.5">
+                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-success-bg text-success uppercase">{e.from_status}</span>
                   </td>
-                  <td className="px-3 py-1.5 border border-panel-border">
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 text-white uppercase" style={{ background: '#e74c3c', borderRadius: 2 }}>{e.to_status}</span>
+                  <td className="px-3 py-2.5">
+                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-danger-bg text-danger uppercase">{e.to_status}</span>
                   </td>
-                  <td className="px-3 py-1.5 border border-panel-border text-muted text-[10px]">
+                  <td className="px-3 py-2.5 text-text-sec text-xs">
                     {e.channels ? (() => { try { return JSON.parse(e.channels).join(', '); } catch { return e.channels; } })() : '—'}
                   </td>
-                  <td className="px-3 py-1.5 border border-panel-border text-muted text-[10px]">{fmtDate(e.at)}</td>
+                  <td className="px-3 py-2.5 text-text-sec text-xs">{fmtDate(e.at)}</td>
                 </tr>
               ))}
             </tbody>

@@ -168,7 +168,8 @@ def scan_subnet_task(self, scan_id: str, cidr: str, session_id: int = 0):
                 sess.total_listed = total_listed
                 sess.completed_at = _dt.datetime.now(_dt.timezone.utc)
                 db.commit()
-        except Exception:
-            pass
+                logger.info("scan_session_complete", extra={"session_id": session_id, "total_listed": total_listed})
+        except Exception as e:
+            logger.error("scan_session_update_failed", extra={"session_id": session_id, "error": str(e)})
         finally:
             db.close()
