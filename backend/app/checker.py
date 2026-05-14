@@ -250,6 +250,23 @@ def lookup_org_for_target(address: str, target_type: str) -> str | None:
     return None
 
 
+def lookup_ptr(ip: str) -> tuple[str | None, bool]:
+    """Returns (ptr_hostname, is_fcrdns). FCrDNS = PTR hostname resolves back to same IP."""
+    try:
+        rev = dns.reversename.from_address(ip)
+        answers = dns.resolver.resolve(rev, 'PTR', lifetime=3)
+        hostname = str(answers[0]).rstrip('.')
+        # Forward-confirm: hostname must resolve back to the original IP
+        try:
+            fwd = dns.resolver.resolve(hostname, 'A', lifetime=3)
+            is_fcrdns = any(str(r) == ip for r in fwd)
+        except Exception:
+            is_fcrdns = False
+        return hostname, is_fcrdns
+    except Exception:
+        return None, False
+
+
 def lookup_asn_number(ip: str) -> str | None:
     """Return ASN string like 'AS15169' for an IPv4. Uses Redis cache (24h TTL)."""
     try:

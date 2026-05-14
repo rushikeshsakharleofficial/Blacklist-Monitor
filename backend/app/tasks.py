@@ -4,7 +4,7 @@ import datetime
 import ipaddress as _ipaddress
 import os as _os
 from .worker import celery_app
-from .checker import check_target, check_subnet_cidr, COMMON_DNSBLS, lookup_org_for_target, lookup_org, check_dnsbl
+from .checker import check_target, check_subnet_cidr, COMMON_DNSBLS, lookup_org_for_target, lookup_org, check_dnsbl, lookup_ptr
 from .database import SessionLocal
 from .models import Target, CheckHistory
 from .alerts import send_alerts
@@ -103,27 +103,35 @@ def monitor_target_task(self, target_id: int):
 
         # Compute reputation score for all target types
         if target.target_type in ('ip', 'subnet'):
-            _score = 60  # neutral start
+            _MAJOR_DNSBLS = {
+                'zen.spamhaus.org', 'sbl.spamhaus.org', 'xbl.spamhaus.org', 'pbl.spamhaus.org',
+                'b.barracudacentral.org', 'bl.spamcop.net', 'dnsbl.sorbs.net', 'cbl.abuseat.org',
+                'spam.dnsbl.sorbs.net', 'smtp.dnsbl.sorbs.net',
+            }
+            _score = 75  # neutral-good start; new IPs cap naturally at 85 (no history)
             try:
                 _details = json.loads(details) if details else {}
-                _hit_count = len(_details.get("hits", [])) if target.target_type == "ip" else _details.get("listed_count", 0)
-                if _hit_count == 0:
-                    _score += 20   # clean
-                elif _hit_count == 1:
-                    _score -= 10   # one hit: mild concern
-                elif _hit_count == 2:
-                    _score -= 25   # two hits: serious
-                else:
-                    _score -= min(_hit_count * 15, 50)  # 3+: severe, cap at -50
+                _hits = _details.get("hits", []) if target.target_type == "ip" else []
+                _major = sum(1 for h in _hits if h in _MAJOR_DNSBLS)
+                _minor = len(_hits) - _major
+                _score -= min(_major * 40, 80)   # 1 major hit (Spamhaus/Barracuda) = -40, cap -80
+                _score -= min(_minor * 10, 30)   # minor hits capped at -30
             except Exception:
                 if is_listed:
-                    _score -= 30
+                    _score -= 40
+            # PTR record: critical — many MTAs reject mail from IPs without PTR
             if target.reverse_dns:
-                _score += 15  # PTR = strong signal for legitimate mail sender
+                # Check FCrDNS: does the PTR hostname resolve back to this IP?
+                _, _fcrdns = lookup_ptr(target.address.split('/')[0])
+                if _fcrdns:
+                    _score += 15  # FCrDNS = strong trust signal, used by Gmail/Outlook
+                else:
+                    _score += 5   # PTR exists but not forward-confirmed — weak signal
             else:
-                _score -= 5   # no PTR = slightly suspicious
+                _score -= 20  # no PTR = instant spam risk with Gmail/Outlook
+            # Datacenter: DC IPs face higher scrutiny, need active warmup
             if target.is_hosting:
-                _score -= 5   # datacenter: minor penalty (legit cloud senders exist)
+                _score -= 10
             target.reputation_score = max(0, min(100, _score))
 
         if is_listed != previous_state or target.last_checked is None:
@@ -211,15 +219,20 @@ def scan_subnet_task(self, scan_id: str, cidr: str, session_id: int = 0):
     subnet_network = _subnet_geo.get("network_cidr")
     total_listed = 0
 
+    def _check_ip(ip):
+        hits = check_dnsbl(ip)
+        ptr, fcrdns = lookup_ptr(ip)
+        return hits, ptr, fcrdns
+
     with ThreadPoolExecutor(max_workers=workers) as executor:
-        futures = {executor.submit(check_dnsbl, ip): ip for ip in ips}
+        futures = {executor.submit(_check_ip, ip): ip for ip in ips}
         try:
             for future in asc(futures, timeout=max(300, total * 2)):
                 ip = futures[future]
                 try:
-                    hits = future.result()
+                    hits, ptr, fcrdns = future.result()
                 except Exception:
-                    hits = []
+                    hits, ptr, fcrdns = [], None, False
                 if hits:
                     total_listed += 1
                 rclient.rpush(f"scan:{scan_id}:results", _json.dumps({
@@ -232,6 +245,8 @@ def scan_subnet_task(self, scan_id: str, cidr: str, session_id: int = 0):
                     "isp": subnet_isp,
                     "is_hosting": subnet_hosting,
                     "network_cidr": subnet_network,
+                    "reverse_dns": ptr,
+                    "is_fcrdns": fcrdns,
                 }))
                 rclient.expire(f"scan:{scan_id}:results", TTL)
                 rclient.incr(f"scan:{scan_id}:done")

@@ -19,6 +19,8 @@ interface ScanResult {
   city?: string | null;
   isp?: string | null;
   is_hosting?: boolean | null;
+  reverse_dns?: string | null;
+  is_fcrdns?: boolean | null;
 }
 
 interface ScanResponse {
@@ -524,9 +526,21 @@ export default function SubnetScanPage() {
                           </td>
                           <td className={TD_CLS}>
                             {(() => {
-                              const h = r.hits.length;
-                              const base = h === 0 ? 80 : h === 1 ? 50 : h === 2 ? 35 : Math.max(10, 60 - h * 15);
-                              const s = Math.max(0, Math.min(100, base - 5 - (r.is_hosting ? 5 : 0)));
+                              const MAJOR = new Set([
+                                'zen.spamhaus.org','sbl.spamhaus.org','xbl.spamhaus.org','pbl.spamhaus.org',
+                                'b.barracudacentral.org','bl.spamcop.net','dnsbl.sorbs.net','cbl.abuseat.org',
+                                'spam.dnsbl.sorbs.net','smtp.dnsbl.sorbs.net',
+                              ]);
+                              const major = r.hits.filter((h: string) => MAJOR.has(h)).length;
+                              const minor = r.hits.length - major;
+                              const ptrAdj = r.is_fcrdns ? 15 : r.reverse_dns ? 5 : -20;
+                              const s = Math.max(0, Math.min(100,
+                                75
+                                - Math.min(major * 40, 80)
+                                - Math.min(minor * 10, 30)
+                                + ptrAdj
+                                - (r.is_hosting ? 10 : 0)
+                              ));
                               return (
                                 <span className={`text-[11px] font-semibold ${s >= 80 ? 'text-success' : s >= 50 ? 'text-warning' : 'text-danger'}`}>
                                   {s}/100
