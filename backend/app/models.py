@@ -76,6 +76,13 @@ class Target(Base):
     created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc), index=True)
     org = Column(String, nullable=True)
     asn = Column(String(20), nullable=True)
+    country_code = Column(String(2), nullable=True)
+    country_name = Column(String(100), nullable=True)
+    city = Column(String(100), nullable=True)
+    isp = Column(String(200), nullable=True)
+    reverse_dns = Column(String(512), nullable=True)
+    is_hosting = Column(Boolean, nullable=True)
+    network_cidr = Column(String(50), nullable=True)
     history = relationship("CheckHistory", back_populates="target")
 
     __table_args__ = (

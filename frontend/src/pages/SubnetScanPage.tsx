@@ -14,6 +14,11 @@ interface ScanResult {
   total_checked: number;
   org: string | null;
   asn?: string | null;
+  country_code?: string | null;
+  country_name?: string | null;
+  city?: string | null;
+  isp?: string | null;
+  is_hosting?: boolean | null;
 }
 
 interface ScanResponse {
@@ -489,6 +494,7 @@ export default function SubnetScanPage() {
                         <th className={`${TH_CLS} w-36`}>IP Address</th>
                         <th className={`${TH_CLS} w-44`}>Provider / Org</th>
                         <th className={`${TH_CLS} w-24`}>ASN</th>
+                        <th className={`${TH_CLS} w-20`}>Country</th>
                         <th className={TH_CLS}>Listed On</th>
                         <th className={`${TH_CLS} w-16`}>Hits</th>
                         <th className={`${TH_CLS} w-28`}>Action</th>
@@ -508,6 +514,12 @@ export default function SubnetScanPage() {
                           </td>
                           <td className={`${TD_CLS} text-xs font-mono text-text-sec whitespace-nowrap w-24`}>
                             {r.asn || '—'}
+                          </td>
+                          <td className={`${TD_CLS} text-xs text-text-sec whitespace-nowrap w-20`}>
+                            {r.country_code ? (
+                              <span title={r.country_name || ''}>{r.country_code}</span>
+                            ) : '—'}
+                            {r.is_hosting && <span className="ml-1.5 text-[9px] font-bold bg-subtle border border-border-base text-text-muted px-1 py-0.5 rounded uppercase">DC</span>}
                           </td>
                           <td className={TD_CLS}>
                             {r.hits.length > 0 ? (

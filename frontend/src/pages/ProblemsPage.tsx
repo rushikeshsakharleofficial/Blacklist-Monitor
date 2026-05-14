@@ -16,6 +16,8 @@ interface ListedTarget {
   last_checked: string | null;
   org?: string | null;
   asn?: string | null;
+  country_code?: string | null;
+  is_hosting?: boolean | null;
 }
 
 function relativeTime(iso: string | null): string {
@@ -281,6 +283,7 @@ ${subnetSections}
       <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec px-3 py-2.5 border-b border-border-base text-left w-28">IP / Domain</th>
       <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec px-3 py-2.5 border-b border-border-base text-left w-40">Provider / Org</th>
       <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec px-3 py-2.5 border-b border-border-base text-left w-24">ASN</th>
+      <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec px-3 py-2.5 border-b border-border-base text-left w-20">Country</th>
       <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec px-3 py-2.5 border-b border-border-base text-left">Listed On (DNSBL)</th>
       <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec px-3 py-2.5 border-b border-border-base text-left w-14">Hits</th>
       <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec px-3 py-2.5 border-b border-border-base text-left w-20">Last Check</th>
@@ -296,6 +299,12 @@ ${subnetSections}
       </td>
       <td className="px-3 py-2.5 text-xs font-mono text-text-sec whitespace-nowrap w-24">
         {t.asn || '—'}
+      </td>
+      <td className="px-3 py-2.5 text-xs text-text-sec whitespace-nowrap w-20">
+        {t.country_code ? (
+          <span>{t.country_code}</span>
+        ) : '—'}
+        {t.is_hosting && <span className="ml-1.5 text-[9px] font-bold bg-subtle border border-border-base text-text-muted px-1 py-0.5 rounded uppercase">DC</span>}
       </td>
       <td className="px-3 py-2.5">
         {t.hits.length === 0
@@ -467,7 +476,7 @@ ${subnetSections}
             <tbody>{paged.map((t, i) => ROW(t, i))}</tbody>
             <tfoot>
               <tr className="bg-subtle">
-                <td colSpan={7} className="px-3 py-2 text-text-sec text-xs">
+                <td colSpan={8} className="px-3 py-2 text-text-sec text-xs">
                   {filtered.length.toLocaleString()} listed — {totalHits.toLocaleString()} hits across {targets[0]?.total_checked ?? 0} DNSBL providers
                 </td>
               </tr>

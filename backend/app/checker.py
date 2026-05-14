@@ -285,6 +285,76 @@ def lookup_asn_number(ip: str) -> str | None:
     return result or None
 
 
+_GEO_CACHE_TTL = 86400  # 24 hours
+
+
+def lookup_ip_details(ip: str) -> dict:
+    """
+    Fetch comprehensive IP details via ip-api.com (free, 45 req/min).
+    Returns dict with: country_code, country_name, city, isp, reverse_dns, is_hosting, network_cidr, asn.
+    Results cached in Redis for 24h.
+    """
+    empty = {"country_code": None, "country_name": None, "city": None,
+             "isp": None, "reverse_dns": None, "is_hosting": None,
+             "network_cidr": None, "asn": None}
+    try:
+        addr = ipaddress.ip_address(ip)
+        if addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved:
+            return empty
+    except Exception:
+        return empty
+
+    cache_key = f"ipgeo:{ip}"
+    try:
+        from .redis_client import rclient
+        import json as _json
+        cached = rclient.get(cache_key)
+        if cached is not None:
+            return _json.loads(cached) if cached else empty
+    except Exception:
+        pass
+
+    try:
+        import requests as _req
+        fields = "status,countryCode,country,regionName,city,isp,org,as,asname,reverse,hosting,network,query"
+        r = _req.get(
+            f"http://ip-api.com/json/{ip}",
+            params={"fields": fields},
+            timeout=5,
+        )
+        if r.status_code != 200:
+            return empty
+        d = r.json()
+        if d.get("status") != "success":
+            return empty
+
+        # Parse ASN from "AS33480 Web Werks" → "AS33480"
+        asn_raw = d.get("as", "") or ""
+        asn_parsed = asn_raw.split(" ")[0] if asn_raw else None
+
+        result = {
+            "country_code": d.get("countryCode") or None,
+            "country_name": d.get("country") or None,
+            "city": d.get("city") or None,
+            "isp": d.get("isp") or None,
+            "reverse_dns": d.get("reverse") or None,
+            "is_hosting": bool(d.get("hosting", False)),
+            "network_cidr": d.get("network") or None,
+            "asn": asn_parsed or None,
+        }
+    except Exception:
+        result = empty
+
+    try:
+        from .redis_client import rclient
+        import json as _json
+        rclient.setex(cache_key, _GEO_CACHE_TTL, _json.dumps(result))
+    except Exception:
+        pass
+
+    return result
+
+
 def check_target(address: str, target_type: str) -> list[str]:
     """Returns list of DNSBL zones where address is listed (empty = clean)."""
     if target_type == "ip":

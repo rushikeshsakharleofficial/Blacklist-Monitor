@@ -117,6 +117,13 @@ class TargetResponse(BaseModel):
     created_at: Optional[dt.datetime] = None
     org: Optional[str] = None
     asn: Optional[str] = None
+    country_code: Optional[str] = None
+    country_name: Optional[str] = None
+    city: Optional[str] = None
+    isp: Optional[str] = None
+    reverse_dns: Optional[str] = None
+    is_hosting: Optional[bool] = None
+    network_cidr: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
@@ -746,12 +753,20 @@ def add_target(request: Request, target: TargetCreate, db: Session = Depends(get
             raise
         except Exception:
             raise HTTPException(status_code=422, detail="Invalid subnet CIDR")
-    from .checker import lookup_org_for_target, lookup_asn_number
+    from .checker import lookup_org_for_target
     org = lookup_org_for_target(address, target_type)
-    asn = None
+    new_target = models.Target(address=address, target_type=target_type, org=org)
     if target_type in ('ip', 'subnet'):
-        asn = lookup_asn_number(address.split('/')[0])
-    new_target = models.Target(address=address, target_type=target_type, org=org, asn=asn)
+        from .checker import lookup_ip_details
+        geo = lookup_ip_details(address.split('/')[0])
+        new_target.asn = geo.get("asn")
+        new_target.country_code = geo.get("country_code")
+        new_target.country_name = geo.get("country_name")
+        new_target.city = geo.get("city")
+        new_target.isp = geo.get("isp")
+        new_target.reverse_dns = geo.get("reverse_dns")
+        new_target.is_hosting = geo.get("is_hosting")
+        new_target.network_cidr = geo.get("network_cidr")
     db.add(new_target)
     db.commit()
     db.refresh(new_target)
@@ -1129,6 +1144,8 @@ async def problems_websocket(websocket: WebSocket):
                     "last_checked": t.last_checked.isoformat() if t.last_checked else None,
                     "org": t.org,
                     "asn": t.asn,
+                    "country_code": t.country_code,
+                    "is_hosting": t.is_hosting,
                 })
             return payload
         finally:

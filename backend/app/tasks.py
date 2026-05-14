@@ -57,7 +57,19 @@ def monitor_target_task(self, target_id: int):
         target.last_checked = now
         if not target.org:
             target.org = lookup_org_for_target(target.address, target.target_type)
-        if not target.asn and target.target_type in ('ip', 'subnet'):
+        if target.target_type in ('ip', 'subnet') and not target.country_code:
+            from .checker import lookup_ip_details
+            geo = lookup_ip_details(target.address.split('/')[0])
+            if not target.asn:
+                target.asn = geo.get("asn")
+            target.country_code = geo.get("country_code")
+            target.country_name = geo.get("country_name")
+            target.city = geo.get("city")
+            target.isp = geo.get("isp")
+            target.reverse_dns = geo.get("reverse_dns")
+            target.is_hosting = geo.get("is_hosting")
+            target.network_cidr = geo.get("network_cidr")
+        elif target.target_type in ('ip', 'subnet') and not target.asn:
             from .checker import lookup_asn_number
             target.asn = lookup_asn_number(target.address.split('/')[0])
 
@@ -135,9 +147,15 @@ def scan_subnet_task(self, scan_id: str, cidr: str, session_id: int = 0):
     total = len(ips)
     TTL = 3600
     workers = min(total, 32)
+    from .checker import lookup_ip_details
+    _subnet_geo = lookup_ip_details(str(net.network_address))
     subnet_org = lookup_org(str(net.network_address))
-    from .checker import lookup_asn_number
-    subnet_asn = lookup_asn_number(str(net.network_address))
+    subnet_asn = _subnet_geo.get("asn")
+    subnet_country = _subnet_geo.get("country_code")
+    subnet_city = _subnet_geo.get("city")
+    subnet_isp = _subnet_geo.get("isp")
+    subnet_hosting = _subnet_geo.get("is_hosting")
+    subnet_network = _subnet_geo.get("network_cidr")
     total_listed = 0
 
     with ThreadPoolExecutor(max_workers=workers) as executor:
@@ -156,6 +174,11 @@ def scan_subnet_task(self, scan_id: str, cidr: str, session_id: int = 0):
                     "total_checked": len(COMMON_DNSBLS),
                     "org": subnet_org,
                     "asn": subnet_asn,
+                    "country_code": subnet_country,
+                    "city": subnet_city,
+                    "isp": subnet_isp,
+                    "is_hosting": subnet_hosting,
+                    "network_cidr": subnet_network,
                 }))
                 rclient.expire(f"scan:{scan_id}:results", TTL)
                 rclient.incr(f"scan:{scan_id}:done")

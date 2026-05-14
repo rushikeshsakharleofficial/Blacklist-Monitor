@@ -15,6 +15,12 @@ export interface Target {
   created_at: string | null;
   org: string | null;
   asn?: string | null;
+  country_code?: string | null;
+  country_name?: string | null;
+  city?: string | null;
+  isp?: string | null;
+  is_hosting?: boolean | null;
+  network_cidr?: string | null;
 }
 
 interface Props {
@@ -149,6 +155,7 @@ const TargetTable: React.FC<Props> = ({ targets, onDelete, onBulkDelete }) => {
             <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec bg-subtle px-3 py-2.5 border-b border-border-base text-left">IP / Domain</th>
             <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec bg-subtle px-3 py-2.5 border-b border-border-base text-left">Provider / Org</th>
             <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec bg-subtle px-3 py-2.5 border-b border-border-base text-left w-24">ASN</th>
+            <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec bg-subtle px-3 py-2.5 border-b border-border-base text-left w-20">Country</th>
             <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec bg-subtle px-3 py-2.5 border-b border-border-base text-left w-16">Type</th>
             <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec bg-subtle px-3 py-2.5 border-b border-border-base text-left w-28">Last Check</th>
             <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec bg-subtle px-3 py-2.5 border-b border-border-base text-left w-44">Actions</th>
@@ -176,6 +183,12 @@ const TargetTable: React.FC<Props> = ({ targets, onDelete, onBulkDelete }) => {
               </td>
               <td className="px-3 py-2.5 text-xs font-mono text-text-sec w-24 whitespace-nowrap">
                 {t.asn || '—'}
+              </td>
+              <td className="px-3 py-2.5 text-xs text-text-sec w-20 whitespace-nowrap">
+                {t.country_code ? (
+                  <span title={t.country_name || t.country_code}>{t.country_code}</span>
+                ) : '—'}
+                {t.is_hosting && <span className="ml-1.5 text-[9px] font-bold bg-subtle border border-border-base text-text-muted px-1 py-0.5 rounded uppercase">DC</span>}
               </td>
               <td className="px-3 py-2.5 uppercase text-xs text-text-sec font-medium">{t.target_type}</td>
               <td className="px-3 py-2.5 text-sm text-text-sec">{relativeTime(t.last_checked)}</td>
@@ -217,7 +230,7 @@ const TargetTable: React.FC<Props> = ({ targets, onDelete, onBulkDelete }) => {
         </tbody>
         <tfoot>
           <tr className="bg-subtle">
-            <td colSpan={8} className="px-3 py-2">
+            <td colSpan={9} className="px-3 py-2">
               <div className="flex items-center justify-between">
                 <span className="text-text-sec text-xs">
                   {targets.length} asset{targets.length !== 1 ? 's' : ''} — {targets.filter(t => t.is_blacklisted).length} listed, {targets.filter(t => !t.is_blacklisted && t.last_checked).length} clean
