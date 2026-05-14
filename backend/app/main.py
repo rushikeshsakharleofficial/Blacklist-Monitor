@@ -310,8 +310,6 @@ def scan_subnet_progress(request: Request, scan_id: str):
     results = [json.loads(r) for r in _rclient.lrange(f"scan:{scan_id}:results", 0, -1)]
     results.sort(key=lambda x: [int(p) for p in x["ip"].split(".")])
     listed = sum(1 for r in results if r["is_blacklisted"])
-    if info["complete"]:
-        _rclient.delete(f"scan:{scan_id}:info", f"scan:{scan_id}:done", f"scan:{scan_id}:results")
     return {
         "scan_id": scan_id,
         "cidr": info["cidr"],
@@ -387,9 +385,7 @@ def bulk_scan_progress(request: Request, batch_id: str):
         results = [json.loads(r) for r in _rclient.lrange(f"scan:{scan_id}:results", 0, -1)]
         listed = sum(1 for r in results if r["is_blacklisted"])
         complete = info.get("complete", False)
-        if complete:
-            _rclient.delete(f"scan:{scan_id}:info", f"scan:{scan_id}:done", f"scan:{scan_id}:results")
-        else:
+        if not complete:
             all_complete = False
         subnets.append({
             "cidr": s["cidr"],
@@ -403,9 +399,6 @@ def bulk_scan_progress(request: Request, batch_id: str):
         total_ips += info["total"]
         total_done += done
         total_listed += listed
-
-    if all_complete:
-        _rclient.delete(f"batch:{batch_id}:scans")
 
     return {
         "batch_id": batch_id,
