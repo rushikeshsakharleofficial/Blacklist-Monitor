@@ -59,7 +59,11 @@ def monitor_target_task(self, target_id: int):
             target.org = lookup_org_for_target(target.address, target.target_type)
 
         if is_listed != previous_state or target.last_checked is None:
-            send_alerts(target.address, is_listed, previous_state if target.last_checked else None, db=db)
+            dispatch_alerts_task.delay(
+                target.address,
+                is_listed,
+                previous_state if target.last_checked else None,
+            )
 
         db.add(CheckHistory(target_id=target.id, status=is_listed, details=details))
         db.commit()
@@ -77,13 +81,23 @@ def monitor_target_task(self, target_id: int):
 def monitor_all_targets_task():
     db = SessionLocal()
     try:
-        targets = db.query(Target).all()
-        for target in targets:
+        count = 0
+        for target in db.query(Target).yield_per(100):
             monitor_target_task.delay(target.id)
-        logger.info("batch_queued", extra={"count": len(targets)})
-        return f"Queued {len(targets)} targets"
+            count += 1
+        logger.info("batch_queued", extra={"count": count})
+        return f"Queued {count} targets"
     finally:
         db.close()
+
+
+@celery_app.task(bind=True, max_retries=3, default_retry_delay=30,
+                 soft_time_limit=60, time_limit=90)
+def dispatch_alerts_task(self, target_address: str, to_status: bool, from_status):
+    try:
+        send_alerts(target_address, to_status, from_status, db=None)
+    except Exception as exc:
+        raise self.retry(exc=exc, countdown=30)
 
 
 @celery_app.task
