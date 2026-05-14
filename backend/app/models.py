@@ -43,6 +43,8 @@ class AdminUser(Base):
     created_by = Column(Integer, ForeignKey("admin_users.id"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     last_login = Column(DateTime(timezone=True), nullable=True)
+    auth_source = Column(String(16), nullable=False, default='local')  # 'local' | 'ldap'
+    ldap_dn = Column(String(512), nullable=True)
 
     role = relationship("Role", back_populates="users")
     created_by_user = relationship("AdminUser", remote_side="AdminUser.id", foreign_keys="AdminUser.created_by")
@@ -127,3 +129,31 @@ class ScanSession(Base):
     total_listed = Column(Integer, default=0)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
     completed_at = Column(DateTime(timezone=True), nullable=True)
+
+
+class LdapConfig(Base):
+    __tablename__ = "ldap_config"
+
+    id = Column(Integer, primary_key=True)
+    is_enabled = Column(Boolean, nullable=False, default=False)
+    host = Column(String(256), nullable=False, default='')
+    port = Column(Integer, nullable=False, default=389)
+    tls_mode = Column(String(16), nullable=False, default='none')  # none | start_tls | ldaps
+    bind_dn = Column(String(512), nullable=False, default='')
+    bind_password = Column(String(512), nullable=False, default='')
+    user_search_base = Column(String(512), nullable=False, default='')
+    user_search_filter = Column(String(256), nullable=False, default='(mail={email})')
+    group_search_base = Column(String(512), nullable=False, default='')
+    group_member_attr = Column(String(64), nullable=False, default='memberOf')
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class LdapGroupRoleMap(Base):
+    __tablename__ = "ldap_group_role_map"
+
+    id = Column(Integer, primary_key=True)
+    ldap_group = Column(String(512), nullable=False, index=True)
+    role_id = Column(Integer, ForeignKey('roles.id', ondelete='CASCADE'), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    role = relationship('Role')
