@@ -6,6 +6,7 @@ import { ErrorDialog } from '../components/Dialog';
 import TargetTable, { Target } from '../components/TargetTable';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001';
+const LS_BULK_ADD_RESULT = 'bm_bulk_add_result';
 
 const MonitoredAssetsPage: React.FC = () => {
   const [targets, setTargets] = useState<Target[]>([]);
@@ -17,7 +18,9 @@ const MonitoredAssetsPage: React.FC = () => {
   const [showBulkModal, setShowBulkModal] = useState(false);
   const [bulkText, setBulkText] = useState('');
   const [bulkLoading, setBulkLoading] = useState(false);
-  const [bulkResult, setBulkResult] = useState<{ added: number; skipped: number; errors: number } | null>(null);
+  const [bulkResult, setBulkResult] = useState<{ added: number; skipped: number; errors: number } | null>(() => {
+    try { const s = localStorage.getItem(LS_BULK_ADD_RESULT); return s ? JSON.parse(s) : null; } catch { return null; }
+  });
   const [expandSubnets, setExpandSubnets] = useState(true);
 
   const fetchTargets = async () => {
@@ -80,7 +83,9 @@ const MonitoredAssetsPage: React.FC = () => {
     try {
       const res = await axios.post(`${API_BASE_URL}/targets/bulk-add`, { values, expand_subnets: expandSubnets });
       const data = res.data;
-      setBulkResult({ added: data.added, skipped: data.skipped, errors: data.errors });
+      const result = { added: data.added, skipped: data.skipped, errors: data.errors };
+      setBulkResult(result);
+      localStorage.setItem(LS_BULK_ADD_RESULT, JSON.stringify(result));
       if (data.added > 0) fetchTargets();
     } catch (err: any) {
       setErrorMsg(err.response?.data?.detail || 'Bulk add failed');
@@ -117,7 +122,7 @@ const MonitoredAssetsPage: React.FC = () => {
             Refresh
           </button>
           <button
-            onClick={() => { setShowBulkModal(true); setBulkResult(null); setBulkText(''); }}
+            onClick={() => { setShowBulkModal(true); setBulkResult(null); setBulkText(''); localStorage.removeItem(LS_BULK_ADD_RESULT); }}
             className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold uppercase text-white border border-[#1a6b3c]"
             style={{ background: '#27ae60', borderRadius: 2 }}
           >
@@ -132,6 +137,17 @@ const MonitoredAssetsPage: React.FC = () => {
           </button>
         </div>
       </header>
+
+      {/* Bulk add last result banner (persists across refresh) */}
+      {bulkResult && !showBulkModal && (
+        <div className="border border-panel-border px-4 py-2 mb-3 flex items-center gap-4 text-xs" style={{ background: '#1e2a35' }}>
+          <span className="text-muted text-[11px] uppercase tracking-wide font-bold">Last Bulk Add:</span>
+          <span style={{ color: '#27ae60' }} className="font-bold">Added: {bulkResult.added}</span>
+          <span style={{ color: '#f39c12' }} className="font-bold">Skipped: {bulkResult.skipped}</span>
+          <span style={{ color: '#e74c3c' }} className="font-bold">Errors: {bulkResult.errors}</span>
+          <button onClick={() => { setBulkResult(null); localStorage.removeItem(LS_BULK_ADD_RESULT); }} className="ml-auto text-muted hover:text-white"><X size={12} /></button>
+        </div>
+      )}
 
       {/* Error Banner */}
       {error && (

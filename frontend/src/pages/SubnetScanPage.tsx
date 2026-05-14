@@ -4,6 +4,8 @@ import { RefreshCw } from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001';
 const STORAGE_KEY = 'api_key';
+const LS_SINGLE_SCAN = 'bm_scan_single';
+const LS_BULK_SCAN   = 'bm_scan_bulk';
 
 interface ScanResult {
   ip: string;
@@ -68,13 +70,85 @@ export default function SubnetScanPage() {
   const [bulkError, setBulkError] = useState<string | null>(null);
   const bulkPollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => () => {
-    if (pollRef.current) clearTimeout(pollRef.current as unknown as ReturnType<typeof setTimeout>);
-    if (bulkPollRef.current) clearTimeout(bulkPollRef.current);
-  }, []);
-
   const apiKey = localStorage.getItem(STORAGE_KEY) || '';
   const headers = { 'X-API-Key': apiKey };
+
+  // Resume in-progress scans after page refresh
+  useEffect(() => {
+    const singleSaved = localStorage.getItem(LS_SINGLE_SCAN);
+    const bulkSaved   = localStorage.getItem(LS_BULK_SCAN);
+
+    if (singleSaved) {
+      try {
+        const { scan_id, cidr: savedCidr, total } = JSON.parse(singleSaved);
+        setMode('single');
+        setCidr(savedCidr);
+        setScanning(true);
+        setProgress({ done: 0, total });
+        resumeSinglePoll(scan_id);
+      } catch { localStorage.removeItem(LS_SINGLE_SCAN); }
+    } else if (bulkSaved) {
+      try {
+        const { batch_id } = JSON.parse(bulkSaved);
+        setMode('bulk');
+        setBulkScanning(true);
+        resumeBulkPoll(batch_id);
+      } catch { localStorage.removeItem(LS_BULK_SCAN); }
+    }
+
+    return () => {
+      if (pollRef.current) clearTimeout(pollRef.current as unknown as ReturnType<typeof setTimeout>);
+      if (bulkPollRef.current) clearTimeout(bulkPollRef.current);
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const resumeSinglePoll = (scan_id: string) => {
+    const poll = async () => {
+      try {
+        const prog = await axios.get(`${API_BASE_URL}/scan/subnet/${scan_id}`, { headers });
+        const data: ScanResponse = prog.data;
+        setProgress({ done: data.done, total: data.total_ips });
+        setLiveResults(data.results);
+        if (data.complete) {
+          pollRef.current = null;
+          setScanning(false);
+          setResult(data);
+          localStorage.removeItem(LS_SINGLE_SCAN);
+          return;
+        }
+        pollRef.current = setTimeout(poll, 800) as unknown as ReturnType<typeof setInterval>;
+      } catch {
+        pollRef.current = null;
+        setScanning(false);
+        setError('Could not reconnect to scan. It may have expired.');
+        localStorage.removeItem(LS_SINGLE_SCAN);
+      }
+    };
+    pollRef.current = setTimeout(poll, 500) as unknown as ReturnType<typeof setInterval>;
+  };
+
+  const resumeBulkPoll = (batch_id: string) => {
+    const poll = async () => {
+      try {
+        const prog = await axios.get(`${API_BASE_URL}/scan/subnets/bulk/${batch_id}`, { headers });
+        const data: BulkScanResponse = prog.data;
+        setBulkResult(data);
+        if (data.complete) {
+          bulkPollRef.current = null;
+          setBulkScanning(false);
+          localStorage.removeItem(LS_BULK_SCAN);
+          return;
+        }
+        bulkPollRef.current = setTimeout(poll, 1000);
+      } catch {
+        bulkPollRef.current = null;
+        setBulkScanning(false);
+        setBulkError('Could not reconnect to bulk scan. It may have expired.');
+        localStorage.removeItem(LS_BULK_SCAN);
+      }
+    };
+    bulkPollRef.current = setTimeout(poll, 500);
+  };
 
   // ── Single scan ──────────────────────────────────────────────────────────────
   const handleScan = async (e: React.FormEvent) => {
@@ -94,6 +168,7 @@ export default function SubnetScanPage() {
       const res = await axios.post(`${API_BASE_URL}/scan/subnet`, { cidr }, { headers });
       const { scan_id, total } = res.data;
       setProgress({ done: 0, total });
+      localStorage.setItem(LS_SINGLE_SCAN, JSON.stringify({ scan_id, cidr, total }));
 
       const poll = async () => {
         try {
@@ -116,6 +191,7 @@ export default function SubnetScanPage() {
             pollRef.current = null;
             setScanning(false);
             setResult(data);
+            localStorage.removeItem(LS_SINGLE_SCAN);
             return;
           }
           pollRef.current = setTimeout(poll, 400) as unknown as ReturnType<typeof setInterval>;
@@ -179,6 +255,7 @@ export default function SubnetScanPage() {
     try {
       const res = await axios.post(`${API_BASE_URL}/scan/subnets/bulk`, { cidrs }, { headers });
       const { batch_id } = res.data;
+      localStorage.setItem(LS_BULK_SCAN, JSON.stringify({ batch_id }));
 
       const poll = async () => {
         try {
@@ -188,6 +265,7 @@ export default function SubnetScanPage() {
           if (data.complete) {
             bulkPollRef.current = null;
             setBulkScanning(false);
+            localStorage.removeItem(LS_BULK_SCAN);
             return;
           }
           bulkPollRef.current = setTimeout(poll, 1000);
@@ -195,6 +273,7 @@ export default function SubnetScanPage() {
           bulkPollRef.current = null;
           setBulkScanning(false);
           setBulkError('Lost connection during bulk scan.');
+          localStorage.removeItem(LS_BULK_SCAN);
         }
       };
       bulkPollRef.current = setTimeout(poll, 800);
