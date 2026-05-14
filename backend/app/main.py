@@ -821,6 +821,19 @@ def recheck_all(request: Request):
     return {"message": "Recheck queued for all targets"}
 
 
+@app.delete("/targets/all", dependencies=[Depends(require("targets:delete"))])
+def delete_all_targets(request: Request, db: Session = Depends(get_db),
+                       user: models.AdminUser = Depends(get_current_user)):
+    """Permanently delete ALL targets and their history. Super admin only."""
+    if not user.role or user.role.name != "super_admin":
+        raise HTTPException(status_code=403, detail="Forbidden — super_admin role required")
+    history_deleted = db.query(models.CheckHistory).delete(synchronize_session=False)
+    targets_deleted = db.query(models.Target).delete(synchronize_session=False)
+    db.commit()
+    logger.warning("all_targets_deleted", extra={"by": user.email, "targets": targets_deleted, "history": history_deleted})
+    return {"deleted_targets": targets_deleted, "deleted_history": history_deleted}
+
+
 @app.post("/targets/bulk-delete", dependencies=[Depends(require("targets:delete"))])
 @limiter.limit("10/minute")
 def bulk_delete_targets(request: Request, body: BulkDeleteRequest, db: Session = Depends(get_db)):

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Shield, Plus, X, RefreshCw } from 'lucide-react';
+import { Shield, Plus, X, RefreshCw, Trash2 } from 'lucide-react';
 import AddTargetForm from '../components/AddTargetForm';
 import { ErrorDialog } from '../components/Dialog';
 import TargetTable, { Target } from '../components/TargetTable';
@@ -22,6 +22,12 @@ const MonitoredAssetsPage: React.FC = () => {
     try { const s = localStorage.getItem(LS_BULK_ADD_RESULT); return s ? JSON.parse(s) : null; } catch { return null; }
   });
   const [expandSubnets, setExpandSubnets] = useState(true);
+  const [showDeleteAllModal, setShowDeleteAllModal] = useState(false);
+  const [deleteAllConfirm, setDeleteAllConfirm] = useState('');
+  const [deleteAllLoading, setDeleteAllLoading] = useState(false);
+
+  const isAdmin = localStorage.getItem('user_role') === 'super_admin';
+  const apiKey = localStorage.getItem('api_key') || '';
 
   const fetchTargets = async () => {
     try {
@@ -68,6 +74,24 @@ const MonitoredAssetsPage: React.FC = () => {
     } catch (err) {
       console.error('Error deleting target:', err);
       setErrorMsg('Failed to remove asset');
+    }
+  };
+
+  const handleDeleteAll = async () => {
+    if (deleteAllConfirm !== 'DELETE') return;
+    setDeleteAllLoading(true);
+    try {
+      await axios.delete(`${API_BASE_URL}/targets/all`, {
+        headers: { 'X-API-Key': apiKey },
+      });
+      setTargets([]);
+      setShowDeleteAllModal(false);
+      setDeleteAllConfirm('');
+    } catch (err: any) {
+      setErrorMsg(err.response?.data?.detail || 'Failed to delete all targets');
+      setShowDeleteAllModal(false);
+    } finally {
+      setDeleteAllLoading(false);
     }
   };
 
@@ -135,6 +159,15 @@ const MonitoredAssetsPage: React.FC = () => {
           >
             {showForm ? <><X size={12} /> Cancel</> : <><Plus size={12} /> Add Asset</>}
           </button>
+          {isAdmin && (
+            <button
+              onClick={() => { setShowDeleteAllModal(true); setDeleteAllConfirm(''); }}
+              className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold uppercase text-white border border-[#7b241c]"
+              style={{ background: '#c0392b', borderRadius: 2 }}
+            >
+              <Trash2 size={12} /> Delete All
+            </button>
+          )}
         </div>
       </header>
 
@@ -250,6 +283,55 @@ const MonitoredAssetsPage: React.FC = () => {
                   style={{ background: '#3a4a5a', color: '#a0b4c8', borderRadius: 2 }}
                 >
                   Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete All Confirmation Modal */}
+      {showDeleteAllModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+          <div className="border border-[#7b241c] w-full max-w-md" style={{ background: '#1e0f0f' }}>
+            <div className="px-4 py-3 border-b border-[#7b241c] flex items-center gap-2" style={{ background: '#c0392b' }}>
+              <Trash2 size={14} className="text-white" />
+              <span className="text-white text-[11px] font-bold uppercase tracking-wider">Delete ALL Targets — Irreversible</span>
+            </div>
+            <div className="p-5">
+              <p className="text-[13px] font-bold mb-1" style={{ color: '#f1948a' }}>
+                This will permanently delete ALL {targets.length.toLocaleString()} monitored IPs and their full check history.
+              </p>
+              <p className="text-[11px] mb-4" style={{ color: '#a0b0c0' }}>
+                This action cannot be undone. Celery tasks already queued will still run but results will be lost.
+              </p>
+              <label className="text-[11px] font-bold uppercase tracking-wide mb-1 block" style={{ color: '#f1948a' }}>
+                Type <span className="font-mono bg-black px-1 py-0.5 rounded">DELETE</span> to confirm
+              </label>
+              <input
+                type="text"
+                value={deleteAllConfirm}
+                onChange={e => setDeleteAllConfirm(e.target.value)}
+                placeholder="DELETE"
+                autoFocus
+                className="w-full px-3 py-2 text-sm font-mono border focus:outline-none mb-4"
+                style={{ background: '#2a0f0f', color: '#f1948a', borderColor: '#7b241c', borderRadius: 2 }}
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={handleDeleteAll}
+                  disabled={deleteAllConfirm !== 'DELETE' || deleteAllLoading}
+                  className="flex-1 py-2 text-xs font-bold uppercase text-white disabled:opacity-40"
+                  style={{ background: '#c0392b', borderRadius: 2 }}
+                >
+                  {deleteAllLoading ? 'Deleting…' : 'Delete Everything'}
+                </button>
+                <button
+                  onClick={() => setShowDeleteAllModal(false)}
+                  className="px-4 py-2 text-xs font-bold uppercase border border-panel-border"
+                  style={{ background: '#2a3a4a', color: '#a0b4c8', borderRadius: 2 }}
+                >
+                  Cancel
                 </button>
               </div>
             </div>
