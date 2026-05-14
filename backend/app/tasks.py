@@ -120,11 +120,12 @@ def prune_old_history_task(days: int = None):
 
 
 @celery_app.task(bind=True, soft_time_limit=600, time_limit=700)
-def scan_subnet_task(self, scan_id: str, cidr: str):
+def scan_subnet_task(self, scan_id: str, cidr: str, session_id: int = 0):
     """DNSBL-check all IPs in subnet; write incremental progress to Redis."""
     from .redis_client import rclient
     from concurrent.futures import ThreadPoolExecutor, as_completed as asc
     import json as _json
+    import datetime as _dt
 
     net = _ipaddress.ip_network(cidr, strict=False)
     ips = [str(ip) for ip in net.hosts()] or [str(net.network_address)]
@@ -132,6 +133,7 @@ def scan_subnet_task(self, scan_id: str, cidr: str):
     TTL = 3600
     workers = min(total, 32)
     subnet_org = lookup_org(str(net.network_address))
+    total_listed = 0
 
     with ThreadPoolExecutor(max_workers=workers) as executor:
         futures = {executor.submit(check_dnsbl, ip): ip for ip in ips}
@@ -142,6 +144,8 @@ def scan_subnet_task(self, scan_id: str, cidr: str):
                     hits = future.result()
                 except Exception:
                     hits = []
+                if hits:
+                    total_listed += 1
                 rclient.rpush(f"scan:{scan_id}:results", _json.dumps({
                     "ip": ip, "hits": hits, "is_blacklisted": bool(hits),
                     "total_checked": len(COMMON_DNSBLS),
@@ -153,3 +157,18 @@ def scan_subnet_task(self, scan_id: str, cidr: str):
             pass
 
     rclient.setex(f"scan:{scan_id}:info", TTL, _json.dumps({"cidr": cidr, "total": total, "complete": True}))
+
+    if session_id:
+        db = SessionLocal()
+        try:
+            from .models import ScanSession
+            sess = db.query(ScanSession).filter(ScanSession.id == session_id).first()
+            if sess:
+                sess.status = "complete"
+                sess.total_listed = total_listed
+                sess.completed_at = _dt.datetime.now(_dt.timezone.utc)
+                db.commit()
+        except Exception:
+            pass
+        finally:
+            db.close()

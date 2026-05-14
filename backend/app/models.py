@@ -113,3 +113,17 @@ class CheckHistory(Base):
     __table_args__ = (
         Index("ix_check_history_target_checked_at", "target_id", "checked_at"),
     )
+
+
+class ScanSession(Base):
+    __tablename__ = "scan_sessions"
+
+    id = Column(Integer, primary_key=True)
+    session_type = Column(String(16), nullable=False)
+    params = Column(String, nullable=False)
+    scan_ref = Column(String(64), nullable=True, index=True)
+    status = Column(String(16), default="running", nullable=False)
+    total_ips = Column(Integer, default=0)
+    total_listed = Column(Integer, default=0)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)

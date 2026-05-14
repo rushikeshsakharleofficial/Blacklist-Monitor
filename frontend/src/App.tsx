@@ -17,6 +17,7 @@ import SetupPage from './pages/SetupPage';
 import SubnetScanPage from './pages/SubnetScanPage';
 import UsersPage from './pages/UsersPage';
 import RolesPage from './pages/RolesPage';
+import ScanSessionsPage from './pages/ScanSessionsPage';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001';
 const STORAGE_KEY = 'api_key';
@@ -301,6 +302,7 @@ function App() {
           <Route path="/problems/:targetId" element={<TargetDetailPage />} />
           <Route path="/problems" element={<ProblemsPage />} />
           <Route path="/subnet-scan" element={<SubnetScanPage />} />
+          <Route path="/scan-sessions" element={<ScanSessionsPage />} />
           <Route path="/users" element={<UsersPage />} />
           <Route path="/roles" element={<RolesPage />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
