@@ -487,7 +487,8 @@ export default function SubnetScanPage() {
                       <tr>
                         <th className={`${TH_CLS} w-20`}>Status</th>
                         <th className={`${TH_CLS} w-36`}>IP Address</th>
-                        <th className={`${TH_CLS} w-44`}>Provider / Org / ASN</th>
+                        <th className={`${TH_CLS} w-44`}>Provider / Org</th>
+                        <th className={`${TH_CLS} w-24`}>ASN</th>
                         <th className={TH_CLS}>Listed On</th>
                         <th className={`${TH_CLS} w-16`}>Hits</th>
                         <th className={`${TH_CLS} w-28`}>Action</th>
@@ -504,7 +505,9 @@ export default function SubnetScanPage() {
                           <td className={`${TD_CLS} font-mono font-semibold`}>{r.ip}</td>
                           <td className={`${TD_CLS} text-xs text-text-sec max-w-[176px]`} title={r.org || ''}>
                             <div className="truncate">{r.org || '—'}</div>
-                            {r.asn && <div className="text-[10px] text-text-muted font-mono mt-0.5">{r.asn}</div>}
+                          </td>
+                          <td className={`${TD_CLS} text-xs font-mono text-text-sec whitespace-nowrap w-24`}>
+                            {r.asn || '—'}
                           </td>
                           <td className={TD_CLS}>
                             {r.hits.length > 0 ? (

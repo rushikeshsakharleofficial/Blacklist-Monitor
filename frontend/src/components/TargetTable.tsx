@@ -147,7 +147,8 @@ const TargetTable: React.FC<Props> = ({ targets, onDelete, onBulkDelete }) => {
             </th>
             <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec bg-subtle px-3 py-2.5 border-b border-border-base text-left w-24">Status</th>
             <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec bg-subtle px-3 py-2.5 border-b border-border-base text-left">IP / Domain</th>
-            <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec bg-subtle px-3 py-2.5 border-b border-border-base text-left">Provider / Org / ASN</th>
+            <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec bg-subtle px-3 py-2.5 border-b border-border-base text-left">Provider / Org</th>
+            <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec bg-subtle px-3 py-2.5 border-b border-border-base text-left w-24">ASN</th>
             <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec bg-subtle px-3 py-2.5 border-b border-border-base text-left w-16">Type</th>
             <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec bg-subtle px-3 py-2.5 border-b border-border-base text-left w-28">Last Check</th>
             <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec bg-subtle px-3 py-2.5 border-b border-border-base text-left w-44">Actions</th>
@@ -170,9 +171,11 @@ const TargetTable: React.FC<Props> = ({ targets, onDelete, onBulkDelete }) => {
               </td>
               <td className="px-3 py-2.5"><StatusBadge target={t} /></td>
               <td className="px-3 py-2.5 font-mono text-text-base text-sm">{t.address}</td>
-              <td className="px-3 py-2.5 text-xs text-text-sec max-w-[200px]" title={t.org || ''}>
+              <td className="px-3 py-2.5 text-xs text-text-sec max-w-[180px]" title={t.org || ''}>
                 <div className="truncate">{t.org || '—'}</div>
-                {t.asn && <div className="text-[10px] text-text-muted font-mono mt-0.5">{t.asn}</div>}
+              </td>
+              <td className="px-3 py-2.5 text-xs font-mono text-text-sec w-24 whitespace-nowrap">
+                {t.asn || '—'}
               </td>
               <td className="px-3 py-2.5 uppercase text-xs text-text-sec font-medium">{t.target_type}</td>
               <td className="px-3 py-2.5 text-sm text-text-sec">{relativeTime(t.last_checked)}</td>
@@ -214,7 +217,7 @@ const TargetTable: React.FC<Props> = ({ targets, onDelete, onBulkDelete }) => {
         </tbody>
         <tfoot>
           <tr className="bg-subtle">
-            <td colSpan={7} className="px-3 py-2">
+            <td colSpan={8} className="px-3 py-2">
               <div className="flex items-center justify-between">
                 <span className="text-text-sec text-xs">
                   {targets.length} asset{targets.length !== 1 ? 's' : ''} — {targets.filter(t => t.is_blacklisted).length} listed, {targets.filter(t => !t.is_blacklisted && t.last_checked).length} clean
