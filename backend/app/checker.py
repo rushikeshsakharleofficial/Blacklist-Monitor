@@ -146,15 +146,16 @@ def check_subnet_cidr(cidr: str) -> list[dict]:
     return results
 
 
-def _cymru_asn_name(ip: str) -> str | None:
-    """ASN org name via Team Cymru DNS — fast fallback."""
+def _cymru_asn_name(ip: str) -> tuple[str | None, str | None]:
+    """ASN org name + ASN number via Team Cymru DNS. Returns (org_name, 'ASxxxxx') or (None, None)."""
     try:
         rev = ".".join(reversed(ip.split(".")))
         answers = _get_resolver().resolve(f"{rev}.origin.asn.cymru.com", "TXT")
         txt = str(answers[0]).strip('"')
         asn = txt.split("|")[0].strip()
         if not asn or asn == "NA":
-            return None
+            return None, None
+        asn_str = f"AS{asn}"
         answers2 = _get_resolver().resolve(f"AS{asn}.asn.cymru.com", "TXT")
         txt2 = str(answers2[0]).strip('"')
         parts = [p.strip() for p in txt2.split("|")]
@@ -167,9 +168,10 @@ def _cymru_asn_name(ip: str) -> str | None:
             # strip trailing ", CC" country code
             if raw.count(",") >= 1:
                 raw = raw.rsplit(",", 1)[0].strip()
-            return raw[:100] or None
+            return raw[:100] or None, asn_str
+        return None, asn_str
     except Exception:
-        return None
+        return None, None
 
 
 _ORG_CACHE_TTL = 86400  # 24 hours
@@ -218,7 +220,7 @@ def lookup_org(ip: str) -> str | None:
         pass
 
     if not result:
-        result = _cymru_asn_name(ip)
+        result, _ = _cymru_asn_name(ip)
 
     try:
         from .redis_client import rclient
@@ -246,6 +248,41 @@ def lookup_org_for_target(address: str, target_type: str) -> str | None:
         except Exception:
             return None
     return None
+
+
+def lookup_asn_number(ip: str) -> str | None:
+    """Return ASN string like 'AS15169' for an IPv4. Uses Redis cache (24h TTL)."""
+    try:
+        addr = ipaddress.ip_address(ip)
+        if addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved:
+            return None
+    except Exception:
+        return None
+    cache_key = f"asn:{ip}"
+    try:
+        from .redis_client import rclient
+        cached = rclient.get(cache_key)
+        if cached is not None:
+            return cached or None
+    except Exception:
+        pass
+    try:
+        rev = ".".join(reversed(ip.split(".")))
+        answers = _get_resolver().resolve(f"{rev}.origin.asn.cymru.com", "TXT")
+        txt = str(answers[0]).strip('"')
+        asn = txt.split("|")[0].strip()
+        if not asn or asn == "NA":
+            result = ""
+        else:
+            result = f"AS{asn}"
+    except Exception:
+        result = ""
+    try:
+        from .redis_client import rclient
+        rclient.setex(cache_key, _ORG_CACHE_TTL, result)
+    except Exception:
+        pass
+    return result or None
 
 
 def check_target(address: str, target_type: str) -> list[str]:

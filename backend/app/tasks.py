@@ -57,6 +57,9 @@ def monitor_target_task(self, target_id: int):
         target.last_checked = now
         if not target.org:
             target.org = lookup_org_for_target(target.address, target.target_type)
+        if not target.asn and target.target_type in ('ip', 'subnet'):
+            from .checker import lookup_asn_number
+            target.asn = lookup_asn_number(target.address.split('/')[0])
 
         if is_listed != previous_state or target.last_checked is None:
             dispatch_alerts_task.delay(
@@ -133,6 +136,8 @@ def scan_subnet_task(self, scan_id: str, cidr: str, session_id: int = 0):
     TTL = 3600
     workers = min(total, 32)
     subnet_org = lookup_org(str(net.network_address))
+    from .checker import lookup_asn_number
+    subnet_asn = lookup_asn_number(str(net.network_address))
     total_listed = 0
 
     with ThreadPoolExecutor(max_workers=workers) as executor:
@@ -150,6 +155,7 @@ def scan_subnet_task(self, scan_id: str, cidr: str, session_id: int = 0):
                     "ip": ip, "hits": hits, "is_blacklisted": bool(hits),
                     "total_checked": len(COMMON_DNSBLS),
                     "org": subnet_org,
+                    "asn": subnet_asn,
                 }))
                 rclient.expire(f"scan:{scan_id}:results", TTL)
                 rclient.incr(f"scan:{scan_id}:done")

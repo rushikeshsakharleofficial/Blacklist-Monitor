@@ -116,6 +116,7 @@ class TargetResponse(BaseModel):
     last_checked: Optional[dt.datetime] = None
     created_at: Optional[dt.datetime] = None
     org: Optional[str] = None
+    asn: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
@@ -744,9 +745,12 @@ def add_target(request: Request, target: TargetCreate, db: Session = Depends(get
             raise
         except Exception:
             raise HTTPException(status_code=422, detail="Invalid subnet CIDR")
-    from .checker import lookup_org_for_target
+    from .checker import lookup_org_for_target, lookup_asn_number
     org = lookup_org_for_target(address, target_type)
-    new_target = models.Target(address=address, target_type=target_type, org=org)
+    asn = None
+    if target_type in ('ip', 'subnet'):
+        asn = lookup_asn_number(address.split('/')[0])
+    new_target = models.Target(address=address, target_type=target_type, org=org, asn=asn)
     db.add(new_target)
     db.commit()
     db.refresh(new_target)
@@ -1118,6 +1122,8 @@ async def problems_websocket(websocket: WebSocket):
                     "hits": hits,
                     "total_checked": total,
                     "last_checked": t.last_checked.isoformat() if t.last_checked else None,
+                    "org": t.org,
+                    "asn": t.asn,
                 })
             return payload
         finally:
