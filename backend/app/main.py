@@ -291,10 +291,11 @@ def subnet_expand(request: Request, body: SubnetScanRequest, db: Session = Depen
     }
     new_ips = [ip for ip in ips if ip not in existing]
     if new_ips:
-        from .checker import lookup_org
+        from .checker import lookup_org, lookup_asn_number
         subnet_org = lookup_org(str(net.network_address))
+        subnet_asn = lookup_asn_number(str(net.network_address))
         db.bulk_save_objects([
-            models.Target(address=ip, target_type="ip", is_blacklisted=False, org=subnet_org)
+            models.Target(address=ip, target_type="ip", is_blacklisted=False, org=subnet_org, asn=subnet_asn)
             for ip in new_ips
         ], return_defaults=True)
         db.commit()
@@ -770,12 +771,14 @@ def bulk_add_targets(request: Request, body: BulkAddRequest, db: Session = Depen
     errors = []
 
     def _add_one(value: str, target_type: str):
+        from .checker import lookup_asn_number as _lookup_asn
         existing = db.query(models.Target).filter(models.Target.address == value).first()
         if existing:
             skipped.append({"value": value, "reason": "already exists"})
             return
         org = lookup_org_for_target(value, target_type)
-        new_target = models.Target(address=value, target_type=target_type, org=org)
+        asn = _lookup_asn(value.split('/')[0]) if target_type in ('ip', 'subnet') else None
+        new_target = models.Target(address=value, target_type=target_type, org=org, asn=asn)
         db.add(new_target)
         db.commit()
         db.refresh(new_target)
@@ -811,7 +814,9 @@ def bulk_add_targets(request: Request, body: BulkAddRequest, db: Session = Depen
 
                 if body.expand_subnets:
                     # Expand CIDR to individual IPs
+                    from .checker import lookup_asn_number as _lookup_asn2
                     subnet_org = lookup_org(str(net.network_address))
+                    subnet_asn = _lookup_asn2(str(net.network_address))
                     ips = [str(ip) for ip in net.hosts()] or [str(net.network_address)]
                     existing_set = {
                         r[0] for r in db.query(models.Target.address).filter(models.Target.address.in_(ips)).all()
@@ -820,7 +825,7 @@ def bulk_add_targets(request: Request, body: BulkAddRequest, db: Session = Depen
                     if existing_set:
                         skipped.append({"value": value, "reason": f"{len(existing_set)} IPs already exist"})
                     db.bulk_save_objects([
-                        models.Target(address=ip, target_type="ip", is_blacklisted=False, org=subnet_org)
+                        models.Target(address=ip, target_type="ip", is_blacklisted=False, org=subnet_org, asn=subnet_asn)
                         for ip in new_ips
                     ], return_defaults=True)
                     db.commit()

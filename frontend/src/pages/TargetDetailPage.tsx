@@ -13,6 +13,8 @@ interface TargetDetail {
   is_blacklisted: boolean;
   last_checked: string | null;
   created_at: string | null;
+  org?: string | null;
+  asn?: string | null;
 }
 
 interface BlacklistHits {
@@ -142,6 +144,15 @@ export default function TargetDetailPage() {
                     </td>
                   </tr>
                 ))}
+                {(target.org || target.asn) && (
+                  <tr className="border-b border-border-base hover:bg-subtle transition-colors">
+                    <td className="px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-text-sec w-36 bg-subtle">Provider / Org</td>
+                    <td className="px-3 py-2.5">
+                      <div className="text-sm text-text-base">{target.org || '—'}</div>
+                      {target.asn && <div className="text-[10px] text-text-muted font-mono mt-0.5">{target.asn}</div>}
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
