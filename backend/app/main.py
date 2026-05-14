@@ -8,6 +8,7 @@ import datetime as dt
 import ipaddress
 import uuid
 import threading
+from contextlib import asynccontextmanager
 from typing import Optional
 import asyncio
 from fastapi import FastAPI, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect
@@ -27,8 +28,6 @@ import json
 setup_logging()
 logger = logging.getLogger(__name__)
 
-models.Base.metadata.create_all(bind=database.engine)
-
 
 def _seed_builtin_roles():
     """Idempotent: create built-in roles at startup and assign super_admin to existing users."""
@@ -43,7 +42,6 @@ def _seed_builtin_roles():
                 for perm in sorted(role_def["permissions"]):
                     db.add(models.RolePermission(role_id=role.id, permission=perm))
         db.commit()
-        # Assign super_admin to any users that don't yet have a role
         super_admin = db.query(models.Role).filter(models.Role.name == "super_admin").first()
         if super_admin:
             db.query(models.AdminUser).filter(models.AdminUser.role_id.is_(None)).update(
@@ -54,12 +52,17 @@ def _seed_builtin_roles():
         db.close()
 
 
-_seed_builtin_roles()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    _seed_builtin_roles()
+    yield
+
 
 limiter = Limiter(key_func=get_remote_address)
 _docs_enabled = os.getenv("ENABLE_DOCS", "false").lower() == "true"
 app = FastAPI(
     title="Blacklist Monitor API",
+    lifespan=lifespan,
     docs_url="/docs" if _docs_enabled else None,
     redoc_url="/redoc" if _docs_enabled else None,
 )
