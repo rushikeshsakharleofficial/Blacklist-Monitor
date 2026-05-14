@@ -21,6 +21,13 @@ export interface Target {
   isp?: string | null;
   is_hosting?: boolean | null;
   network_cidr?: string | null;
+  nameservers?: string | null;
+  registrar?: string | null;
+  domain_age_days?: number | null;
+  has_spf?: boolean | null;
+  has_dmarc?: boolean | null;
+  has_mx?: boolean | null;
+  reputation_score?: number | null;
 }
 
 interface Props {
@@ -154,8 +161,8 @@ const TargetTable: React.FC<Props> = ({ targets, onDelete, onBulkDelete }) => {
             <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec bg-subtle px-3 py-2.5 border-b border-border-base text-left w-24">Status</th>
             <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec bg-subtle px-3 py-2.5 border-b border-border-base text-left">IP / Domain</th>
             <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec bg-subtle px-3 py-2.5 border-b border-border-base text-left">Provider / Org</th>
-            <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec bg-subtle px-3 py-2.5 border-b border-border-base text-left w-24">ASN</th>
-            <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec bg-subtle px-3 py-2.5 border-b border-border-base text-left w-20">Country</th>
+            <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec bg-subtle px-3 py-2.5 border-b border-border-base text-left w-24">ASN / NS</th>
+            <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec bg-subtle px-3 py-2.5 border-b border-border-base text-left w-20">Country / Score</th>
             <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec bg-subtle px-3 py-2.5 border-b border-border-base text-left w-16">Type</th>
             <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec bg-subtle px-3 py-2.5 border-b border-border-base text-left w-28">Last Check</th>
             <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec bg-subtle px-3 py-2.5 border-b border-border-base text-left w-44">Actions</th>
@@ -178,17 +185,45 @@ const TargetTable: React.FC<Props> = ({ targets, onDelete, onBulkDelete }) => {
               </td>
               <td className="px-3 py-2.5"><StatusBadge target={t} /></td>
               <td className="px-3 py-2.5 font-mono text-text-base text-sm">{t.address}</td>
-              <td className="px-3 py-2.5 text-xs text-text-sec max-w-[180px]" title={t.org || ''}>
-                <div className="truncate">{t.org || '—'}</div>
+              <td className="px-3 py-2.5 text-xs text-text-sec max-w-[180px]" title={t.org || t.registrar || ''}>
+                <div className="truncate">{t.org || t.registrar || '—'}</div>
               </td>
               <td className="px-3 py-2.5 text-xs font-mono text-text-sec w-24 whitespace-nowrap">
-                {t.asn || '—'}
+                {t.target_type === 'domain' ? (
+                  <div className="text-[10px] text-text-muted truncate font-mono" title={t.nameservers ? (() => { try { return JSON.parse(t.nameservers!).join(', '); } catch { return ''; } })() : ''}>
+                    {t.nameservers ? (() => { try { return JSON.parse(t.nameservers!)[0]; } catch { return '—'; } })() : '—'}
+                  </div>
+                ) : (
+                  <span>{t.asn || '—'}</span>
+                )}
               </td>
               <td className="px-3 py-2.5 text-xs text-text-sec w-20 whitespace-nowrap">
-                {t.country_code ? (
-                  <span title={t.country_name || t.country_code}>{t.country_code}</span>
-                ) : '—'}
-                {t.is_hosting && <span className="ml-1.5 text-[9px] font-bold bg-subtle border border-border-base text-text-muted px-1 py-0.5 rounded uppercase">DC</span>}
+                {t.target_type === 'domain' ? (
+                  <div className="space-y-0.5">
+                    {t.reputation_score != null && (
+                      <div className={`text-[11px] font-semibold ${t.reputation_score >= 80 ? 'text-success' : t.reputation_score >= 50 ? 'text-warning' : 'text-danger'}`}>
+                        {t.reputation_score}/100
+                      </div>
+                    )}
+                    <div className="flex gap-1 flex-wrap">
+                      {t.has_spf && <span className="text-[9px] font-bold bg-success-bg text-success px-1 rounded">SPF</span>}
+                      {t.has_dmarc && <span className="text-[9px] font-bold bg-success-bg text-success px-1 rounded">DMARC</span>}
+                      {t.has_mx && <span className="text-[9px] font-bold bg-subtle text-text-sec px-1 rounded">MX</span>}
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    {t.reputation_score != null && (
+                      <div className={`text-[11px] font-semibold ${t.reputation_score >= 80 ? 'text-success' : t.reputation_score >= 50 ? 'text-warning' : 'text-danger'}`}>
+                        {t.reputation_score}/100
+                      </div>
+                    )}
+                    <div>
+                      {t.country_code || '—'}
+                      {t.is_hosting && <span className="ml-1.5 text-[9px] font-bold bg-subtle border border-border-base text-text-muted px-1 py-0.5 rounded uppercase">DC</span>}
+                    </div>
+                  </div>
+                )}
               </td>
               <td className="px-3 py-2.5 uppercase text-xs text-text-sec font-medium">{t.target_type}</td>
               <td className="px-3 py-2.5 text-sm text-text-sec">{relativeTime(t.last_checked)}</td>

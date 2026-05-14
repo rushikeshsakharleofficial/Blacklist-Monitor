@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, Index, UniqueConstraint, func
+from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, ForeignKey, Index, UniqueConstraint, func
 from sqlalchemy.orm import relationship
 import datetime
 from .database import Base
@@ -83,6 +83,13 @@ class Target(Base):
     reverse_dns = Column(String(512), nullable=True)
     is_hosting = Column(Boolean, nullable=True)
     network_cidr = Column(String(50), nullable=True)
+    nameservers = Column(Text, nullable=True)          # JSON list: '["ns1.google.com", "ns2.google.com"]'
+    registrar = Column(String(200), nullable=True)
+    domain_age_days = Column(Integer, nullable=True)
+    has_spf = Column(Boolean, nullable=True)
+    has_dmarc = Column(Boolean, nullable=True)
+    has_mx = Column(Boolean, nullable=True)
+    reputation_score = Column(Integer, nullable=True)  # 0-100
     history = relationship("CheckHistory", back_populates="target")
 
     __table_args__ = (

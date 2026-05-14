@@ -124,6 +124,13 @@ class TargetResponse(BaseModel):
     reverse_dns: Optional[str] = None
     is_hosting: Optional[bool] = None
     network_cidr: Optional[str] = None
+    nameservers: Optional[str] = None
+    registrar: Optional[str] = None
+    domain_age_days: Optional[int] = None
+    has_spf: Optional[bool] = None
+    has_dmarc: Optional[bool] = None
+    has_mx: Optional[bool] = None
+    reputation_score: Optional[int] = None
 
     model_config = {"from_attributes": True}
 
@@ -767,6 +774,16 @@ def add_target(request: Request, target: TargetCreate, db: Session = Depends(get
         new_target.reverse_dns = geo.get("reverse_dns")
         new_target.is_hosting = geo.get("is_hosting")
         new_target.network_cidr = geo.get("network_cidr")
+    if new_target.target_type == 'domain':
+        from .checker import lookup_domain_details
+        dom = lookup_domain_details(new_target.address)
+        new_target.nameservers = dom.get("nameservers")
+        new_target.registrar = dom.get("registrar")
+        new_target.domain_age_days = dom.get("domain_age_days")
+        new_target.has_spf = dom.get("has_spf")
+        new_target.has_dmarc = dom.get("has_dmarc")
+        new_target.has_mx = dom.get("has_mx")
+        new_target.reputation_score = dom.get("reputation_score")
     db.add(new_target)
     db.commit()
     db.refresh(new_target)

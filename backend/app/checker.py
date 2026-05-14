@@ -385,6 +385,123 @@ def lookup_ip_details(ip: str) -> dict:
     return result
 
 
+_DOMAIN_CACHE_TTL = 3600  # 1 hour (domains change less predictably)
+
+
+def lookup_domain_details(domain: str) -> dict:
+    """
+    Enrich a domain target with: nameservers, registrar, domain age,
+    SPF/DMARC/MX presence, and a 0-100 reputation score.
+    Uses DNS (dnspython) + python-whois. Results cached in Redis for 1h.
+    """
+    import json as _json
+    empty = {
+        "nameservers": None, "registrar": None, "domain_age_days": None,
+        "has_spf": None, "has_dmarc": None, "has_mx": None, "reputation_score": None,
+    }
+    domain = domain.lower().strip().rstrip(".")
+    if not domain or "." not in domain:
+        return empty
+
+    cache_key = f"domgeo:{domain}"
+    try:
+        from .redis_client import rclient
+        cached = rclient.get(cache_key)
+        if cached is not None:
+            return _json.loads(cached) if cached else empty
+    except Exception:
+        pass
+
+    result = dict(empty)
+    resolver = _get_resolver()
+
+    # -- 1. Nameservers --------------------------------------------------
+    try:
+        ns_answers = resolver.resolve(domain, "NS", lifetime=5)
+        result["nameservers"] = _json.dumps(
+            sorted({str(r).rstrip(".").lower() for r in ns_answers})[:8]
+        )
+    except Exception:
+        pass
+
+    # -- 2. MX records ---------------------------------------------------
+    try:
+        mx_answers = resolver.resolve(domain, "MX", lifetime=5)
+        result["has_mx"] = len(mx_answers) > 0
+    except Exception:
+        result["has_mx"] = False
+
+    # -- 3. SPF (TXT record containing "v=spf1") -------------------------
+    try:
+        txt_answers = resolver.resolve(domain, "TXT", lifetime=5)
+        spf_found = any(
+            "v=spf1" in "".join(str(r) for r in rdata.strings).lower()
+            for rdata in txt_answers
+        )
+        result["has_spf"] = spf_found
+    except Exception:
+        result["has_spf"] = False
+
+    # -- 4. DMARC (_dmarc.domain TXT) -----------------------------------
+    try:
+        dmarc_answers = resolver.resolve(f"_dmarc.{domain}", "TXT", lifetime=5)
+        dmarc_found = any(
+            "v=dmarc1" in "".join(str(r) for r in rdata.strings).lower()
+            for rdata in dmarc_answers
+        )
+        result["has_dmarc"] = dmarc_found
+    except Exception:
+        result["has_dmarc"] = False
+
+    # -- 5. WHOIS - registrar + domain age -------------------------------
+    try:
+        import whois as _whois
+        import datetime as _datetime
+        w = _whois.whois(domain)
+        if w.registrar:
+            result["registrar"] = str(w.registrar)[:200]
+        created = w.creation_date
+        if isinstance(created, list):
+            created = created[0]
+        if created:
+            if hasattr(created, 'replace'):
+                now = _datetime.datetime.now(tz=_datetime.timezone.utc)
+                if created.tzinfo is None:
+                    created = created.replace(tzinfo=_datetime.timezone.utc)
+                delta = now - created
+                result["domain_age_days"] = max(0, delta.days)
+    except Exception:
+        pass
+
+    # -- 6. Reputation score (0-100) ------------------------------------
+    # Start at 70 (unknown domain, neutral). Adjust based on signals:
+    score = 70
+    if result["has_spf"]:
+        score += 10
+    if result["has_dmarc"]:
+        score += 10
+    if result["has_mx"]:
+        score += 5
+    age = result.get("domain_age_days") or 0
+    if age > 730:    # > 2 years
+        score += 10
+    elif age > 365:  # > 1 year
+        score += 5
+    elif age > 0 and age < 30:  # brand new domain
+        score -= 20
+    elif age > 0 and age < 90:
+        score -= 10
+    result["reputation_score"] = max(0, min(100, score))
+
+    try:
+        from .redis_client import rclient
+        rclient.setex(cache_key, _DOMAIN_CACHE_TTL, _json.dumps(result))
+    except Exception:
+        pass
+
+    return result
+
+
 def check_target(address: str, target_type: str) -> list[str]:
     """Returns list of DNSBL zones where address is listed (empty = clean)."""
     if target_type == "ip":

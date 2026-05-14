@@ -73,6 +73,50 @@ def monitor_target_task(self, target_id: int):
             from .checker import lookup_asn_number
             target.asn = lookup_asn_number(target.address.split('/')[0])
 
+        if target.target_type == 'domain' and not target.registrar:
+            from .checker import lookup_domain_details
+            dom = lookup_domain_details(target.address)
+            target.nameservers = dom.get("nameservers")
+            target.registrar = dom.get("registrar")
+            target.domain_age_days = dom.get("domain_age_days")
+            target.has_spf = dom.get("has_spf")
+            target.has_dmarc = dom.get("has_dmarc")
+            target.has_mx = dom.get("has_mx")
+            # Update reputation score on every check (DNSBL hits affect it)
+        if target.target_type == 'domain':
+            # Recompute reputation including current DNSBL status
+            base = 70
+            if target.has_spf: base += 10
+            if target.has_dmarc: base += 10
+            if target.has_mx: base += 5
+            age = target.domain_age_days or 0
+            if age > 730: base += 10
+            elif age > 365: base += 5
+            elif 0 < age < 30: base -= 20
+            elif 0 < age < 90: base -= 10
+            if target.is_blacklisted: base -= 30
+            target.reputation_score = max(0, min(100, base))
+
+        # Compute reputation score for all target types
+        if target.target_type in ('ip', 'subnet'):
+            # Base score — higher is better
+            _score = 80
+            # DNSBL hits: parse count from details
+            try:
+                _details = json.loads(details) if details else {}
+                _hit_count = len(_details.get("hits", [])) if target.target_type == "ip" else _details.get("listed_count", 0)
+                _score -= min(_hit_count * 20, 60)  # max -60 for 3+ hits
+            except Exception:
+                if is_listed:
+                    _score -= 30
+            if target.is_hosting:
+                _score -= 10  # datacenter = more suspicious
+            if target.reverse_dns:
+                _score += 5   # PTR record = better reputation
+            else:
+                _score -= 5   # no PTR = slightly worse
+            target.reputation_score = max(0, min(100, _score))
+
         if is_listed != previous_state or target.last_checked is None:
             dispatch_alerts_task.delay(
                 target.address,
