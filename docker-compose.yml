@@ -45,8 +45,6 @@ services:
 
   api:
     build: ./backend
-    ports:
-      - "8001:8000"
     environment:
       - DATABASE_URL=${DATABASE_URL}
       - REDIS_URL=${REDIS_URL}
@@ -100,7 +98,9 @@ services:
 
   beat:
     build: ./backend
-    command: celery -A app.worker beat --loglevel=info --schedule=/tmp/celerybeat-schedule
+    command: celery -A app.worker beat --loglevel=info --schedule=/data/celerybeat-schedule
+    volumes:
+      - celerybeat_data:/data
     environment:
       - DATABASE_URL=${DATABASE_URL}
       - REDIS_URL=${REDIS_URL}
@@ -154,3 +154,4 @@ volumes:
   postgres_data:
   certbot_certs:
   certbot_www:
+  celerybeat_data:
