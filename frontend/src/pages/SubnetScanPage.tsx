@@ -524,7 +524,9 @@ export default function SubnetScanPage() {
                           </td>
                           <td className={TD_CLS}>
                             {(() => {
-                              const s = Math.max(0, Math.min(100, 80 - Math.min(r.hits.length * 20, 60) - (r.is_hosting ? 10 : 0) - 5));
+                              const h = r.hits.length;
+                              const base = h === 0 ? 80 : h === 1 ? 50 : h === 2 ? 35 : Math.max(10, 60 - h * 15);
+                              const s = Math.max(0, Math.min(100, base - 5 - (r.is_hosting ? 5 : 0)));
                               return (
                                 <span className={`text-[11px] font-semibold ${s >= 80 ? 'text-success' : s >= 50 ? 'text-warning' : 'text-danger'}`}>
                                   {s}/100

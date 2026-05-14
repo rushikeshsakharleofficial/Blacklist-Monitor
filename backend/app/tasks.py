@@ -84,37 +84,46 @@ def monitor_target_task(self, target_id: int):
             target.has_mx = dom.get("has_mx")
             # Update reputation score on every check (DNSBL hits affect it)
         if target.target_type == 'domain':
-            # Recompute reputation including current DNSBL status
-            base = 70
-            if target.has_spf: base += 10
-            if target.has_dmarc: base += 10
+            base = 50  # neutral start
+            # Email authentication — most important signals
+            if target.has_spf: base += 15
+            if target.has_dmarc: base += 15
             if target.has_mx: base += 5
+            # Domain age — critical for warmup assessment
             age = target.domain_age_days or 0
-            if age > 730: base += 10
-            elif age > 365: base += 5
-            elif 0 < age < 30: base -= 20
-            elif 0 < age < 90: base -= 10
-            if target.is_blacklisted: base -= 30
+            if age > 1825:   base += 15   # 5+ years: very established
+            elif age > 730:  base += 10   # 2+ years: established
+            elif age > 365:  base += 5    # 1+ year: decent
+            elif 0 < age <= 30:  base -= 25  # <30 days: very suspicious
+            elif 0 < age <= 90:  base -= 10  # 1-3 months: concerning
+            # 90-365 days: neutral (0)
+            # Blacklist penalty
+            if target.is_blacklisted: base -= 35
             target.reputation_score = max(0, min(100, base))
 
         # Compute reputation score for all target types
         if target.target_type in ('ip', 'subnet'):
-            # Base score — higher is better
-            _score = 80
-            # DNSBL hits: parse count from details
+            _score = 60  # neutral start
             try:
                 _details = json.loads(details) if details else {}
                 _hit_count = len(_details.get("hits", [])) if target.target_type == "ip" else _details.get("listed_count", 0)
-                _score -= min(_hit_count * 20, 60)  # max -60 for 3+ hits
+                if _hit_count == 0:
+                    _score += 20   # clean
+                elif _hit_count == 1:
+                    _score -= 10   # one hit: mild concern
+                elif _hit_count == 2:
+                    _score -= 25   # two hits: serious
+                else:
+                    _score -= min(_hit_count * 15, 50)  # 3+: severe, cap at -50
             except Exception:
                 if is_listed:
                     _score -= 30
-            if target.is_hosting:
-                _score -= 10  # datacenter = more suspicious
             if target.reverse_dns:
-                _score += 5   # PTR record = better reputation
+                _score += 15  # PTR = strong signal for legitimate mail sender
             else:
-                _score -= 5   # no PTR = slightly worse
+                _score -= 5   # no PTR = slightly suspicious
+            if target.is_hosting:
+                _score -= 5   # datacenter: minor penalty (legit cloud senders exist)
             target.reputation_score = max(0, min(100, _score))
 
         if is_listed != previous_state or target.last_checked is None:
