@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
-import { ExternalLink, Wifi, WifiOff, RefreshCw, ShieldAlert, ChevronDown, ChevronRight, Search, X } from 'lucide-react';
+import { ExternalLink, Wifi, WifiOff, RefreshCw, ShieldAlert, ChevronDown, ChevronRight, Search, X, Download } from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001';
 const STORAGE_KEY = 'api_key';
@@ -65,6 +65,51 @@ export default function ProblemsPage() {
 
   const wsRef = useRef<WebSocket | null>(null);
   const retryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const exportCSV = () => {
+    const q = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
+    const HEADER = ['IP / Domain', 'Type', 'DNSBL Hits', 'Hit Count', 'Total Checked', 'Last Checked'];
+
+    // Group by /24 subnet
+    const subnetMap: Record<string, ListedTarget[]> = {};
+    filtered.forEach(t => {
+      const parts = t.address.split('.');
+      const subnet = parts.length === 4 ? `${parts[0]}.${parts[1]}.${parts[2]}.0/24` : 'Other';
+      if (!subnetMap[subnet]) subnetMap[subnet] = [];
+      subnetMap[subnet].push(t);
+    });
+
+    // Sort subnets; sort IPs within each
+    const sortedSubnets = Object.entries(subnetMap).sort((a, b) => a[0].localeCompare(b[0]));
+
+    const lines: string[] = [
+      `Listed IPs Export — ${new Date().toLocaleString()}`,
+      `Total: ${filtered.length} IPs across ${sortedSubnets.length} subnets`,
+      '',
+    ];
+
+    sortedSubnets.forEach(([subnet, ips]) => {
+      lines.push(`Subnet: ${subnet} (${ips.length} listed)`);
+      lines.push(HEADER.map(q).join(','));
+      ips
+        .sort((a, b) => a.address.localeCompare(b.address, undefined, { numeric: true }))
+        .forEach(t => {
+          lines.push([
+            t.address, t.target_type, t.hits.join('; '),
+            t.hits.length, t.total_checked, t.last_checked ?? '',
+          ].map(q).join(','));
+        });
+      lines.push(''); // blank row between subnets
+    });
+
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `listed_ips_by_subnet_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const forceRecheckAll = async () => {
     setRechecking(true);
@@ -211,6 +256,12 @@ export default function ProblemsPage() {
             style={{ borderRadius: 2 }}>
             <RefreshCw size={11} className={rechecking ? 'animate-spin' : ''} />
             Recheck All
+          </button>
+          <button onClick={exportCSV} disabled={filtered.length === 0}
+            className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-bold text-white border border-[#1a6b3c] disabled:opacity-50 uppercase tracking-wide"
+            style={{ background: '#27ae60', borderRadius: 2 }}>
+            <Download size={11} />
+            Export CSV
           </button>
           <div className={`flex items-center gap-1 text-[11px] font-bold px-2 py-1 border ${connected ? 'text-success border-success bg-success-bg' : 'text-danger border-danger bg-danger-bg'}`} style={{ borderRadius: 2 }}>
             {connected ? <><Wifi size={11} /> Live</> : <><WifiOff size={11} /> Reconnecting{retryCount > 0 ? ` (${retryCount})` : ''}…</>}
