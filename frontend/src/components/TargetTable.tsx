@@ -14,6 +14,7 @@ export interface Target {
   last_checked: string | null;
   created_at: string | null;
   org: string | null;
+  asn?: string | null;
 }
 
 interface Props {
@@ -146,7 +147,7 @@ const TargetTable: React.FC<Props> = ({ targets, onDelete, onBulkDelete }) => {
             </th>
             <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec bg-subtle px-3 py-2.5 border-b border-border-base text-left w-24">Status</th>
             <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec bg-subtle px-3 py-2.5 border-b border-border-base text-left">IP / Domain</th>
-            <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec bg-subtle px-3 py-2.5 border-b border-border-base text-left">Provider / Org</th>
+            <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec bg-subtle px-3 py-2.5 border-b border-border-base text-left">Provider / Org / ASN</th>
             <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec bg-subtle px-3 py-2.5 border-b border-border-base text-left w-16">Type</th>
             <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec bg-subtle px-3 py-2.5 border-b border-border-base text-left w-28">Last Check</th>
             <th className="text-[11px] font-semibold uppercase tracking-wide text-text-sec bg-subtle px-3 py-2.5 border-b border-border-base text-left w-44">Actions</th>
@@ -169,7 +170,10 @@ const TargetTable: React.FC<Props> = ({ targets, onDelete, onBulkDelete }) => {
               </td>
               <td className="px-3 py-2.5"><StatusBadge target={t} /></td>
               <td className="px-3 py-2.5 font-mono text-text-base text-sm">{t.address}</td>
-              <td className="px-3 py-2.5 text-xs text-text-sec truncate max-w-[180px]" title={t.org || ''}>{t.org || '—'}</td>
+              <td className="px-3 py-2.5 text-xs text-text-sec max-w-[200px]" title={t.org || ''}>
+                <div className="truncate">{t.org || '—'}</div>
+                {t.asn && <div className="text-[10px] text-text-muted font-mono mt-0.5">{t.asn}</div>}
+              </td>
               <td className="px-3 py-2.5 uppercase text-xs text-text-sec font-medium">{t.target_type}</td>
               <td className="px-3 py-2.5 text-sm text-text-sec">{relativeTime(t.last_checked)}</td>
               <td className="px-3 py-2.5 whitespace-nowrap">
