@@ -290,10 +290,12 @@ _GEO_CACHE_TTL = 86400  # 24 hours
 
 def lookup_ip_details(ip: str) -> dict:
     """
-    Fetch comprehensive IP details via ip-api.com (free, 45 req/min).
-    Returns dict with: country_code, country_name, city, isp, reverse_dns, is_hosting, network_cidr, asn.
+    Return comprehensive IP info using RDAP (ipwhois) + Cymru DNS + PTR.
+    No external HTTP calls — all DNS/RDAP-based, works from any network.
+    Returns: country_code, country_name, city, isp, reverse_dns, is_hosting, network_cidr, asn.
     Results cached in Redis for 24h.
     """
+    import json as _json
     empty = {"country_code": None, "country_name": None, "city": None,
              "isp": None, "reverse_dns": None, "is_hosting": None,
              "network_cidr": None, "asn": None}
@@ -307,47 +309,75 @@ def lookup_ip_details(ip: str) -> dict:
     cache_key = f"ipgeo:{ip}"
     try:
         from .redis_client import rclient
-        import json as _json
         cached = rclient.get(cache_key)
         if cached is not None:
             return _json.loads(cached) if cached else empty
     except Exception:
         pass
 
+    result = dict(empty)
+
+    # ── 1. ipwhois RDAP — country, network CIDR, ASN, ISP ─────────────────
     try:
-        import requests as _req
-        fields = "status,countryCode,country,regionName,city,isp,org,as,asname,reverse,hosting,network,query"
-        r = _req.get(
-            f"http://ip-api.com/json/{ip}",
-            params={"fields": fields},
-            timeout=5,
-        )
-        if r.status_code != 200:
-            return empty
-        d = r.json()
-        if d.get("status") != "success":
-            return empty
+        from ipwhois import IPWhois
+        rdap = IPWhois(ip).lookup_rdap(depth=0, retry_count=1)
 
-        # Parse ASN from "AS33480 Web Werks" → "AS33480"
-        asn_raw = d.get("as", "") or ""
-        asn_parsed = asn_raw.split(" ")[0] if asn_raw else None
+        result["asn"] = f"AS{rdap['asn']}" if rdap.get("asn") else None
+        result["network_cidr"] = rdap.get("asn_cidr") or None
+        result["country_code"] = rdap.get("asn_country_code") or None
 
-        result = {
-            "country_code": d.get("countryCode") or None,
-            "country_name": d.get("country") or None,
-            "city": d.get("city") or None,
-            "isp": d.get("isp") or None,
-            "reverse_dns": d.get("reverse") or None,
-            "is_hosting": bool(d.get("hosting", False)),
-            "network_cidr": d.get("network") or None,
-            "asn": asn_parsed or None,
-        }
+        # ISP from asn_description: "WEBWERKSAS1 - Web Werks, US" → "Web Werks"
+        asn_desc = rdap.get("asn_description", "") or ""
+        if asn_desc:
+            if " - " in asn_desc:
+                asn_desc = asn_desc.split(" - ", 1)[1]
+            if "," in asn_desc:
+                asn_desc = asn_desc.rsplit(",", 1)[0].strip()
+            if len(asn_desc) > 2:
+                result["isp"] = asn_desc[:100]
+
     except Exception:
-        result = empty
+        pass
+
+    # ── 2. Cymru DNS fallback for country_code + network_cidr ──────────────
+    if not result["country_code"] or not result["network_cidr"]:
+        try:
+            rev = ".".join(reversed(ip.split(".")))
+            answers = _get_resolver().resolve(f"{rev}.origin.asn.cymru.com", "TXT")
+            txt = str(answers[0]).strip('"')
+            # Format: "33480 | 202.162.239.0/24 | IN | apnic | 1997-08-22"
+            parts = [p.strip() for p in txt.split("|")]
+            if len(parts) >= 3:
+                if not result["asn"] and parts[0]:
+                    result["asn"] = f"AS{parts[0]}"
+                if not result["network_cidr"] and parts[1]:
+                    result["network_cidr"] = parts[1]
+                if not result["country_code"] and parts[2]:
+                    result["country_code"] = parts[2].upper()
+        except Exception:
+            pass
+
+    # ── 3. PTR / reverse DNS ───────────────────────────────────────────────
+    try:
+        import dns.reversename
+        ptr_name = dns.reversename.from_address(ip)
+        ans = _get_resolver().resolve(ptr_name, "PTR", lifetime=3)
+        result["reverse_dns"] = str(ans[0]).rstrip(".")
+    except Exception:
+        pass
+
+    # ── 4. Country name from pycountry (ISO 3166-1 alpha-2) ────────────────
+    cc = result.get("country_code")
+    if cc:
+        try:
+            import pycountry
+            country = pycountry.countries.get(alpha_2=cc)
+            result["country_name"] = country.name if country else cc
+        except Exception:
+            result["country_name"] = cc
 
     try:
         from .redis_client import rclient
-        import json as _json
         rclient.setex(cache_key, _GEO_CACHE_TTL, _json.dumps(result))
     except Exception:
         pass
