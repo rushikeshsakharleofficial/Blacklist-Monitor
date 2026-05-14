@@ -18,6 +18,7 @@ import SubnetScanPage from './pages/SubnetScanPage';
 import UsersPage from './pages/UsersPage';
 import RolesPage from './pages/RolesPage';
 import ScanSessionsPage from './pages/ScanSessionsPage';
+import DashboardPage from './pages/DashboardPage';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001';
 const STORAGE_KEY = 'api_key';
@@ -346,7 +347,7 @@ function App() {
           <Routes>
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="/login" element={<Navigate to="/dashboard" replace />} />
-            <Route path="/dashboard" element={<Dashboard apiBaseUrl={API_BASE_URL} />} />
+            <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/monitored-assets" element={<MonitoredAssetsPage />} />
             <Route path="/alerts" element={<AlertsPage />} />
             <Route path="/reports" element={<ReportsPage />} />

@@ -582,6 +582,70 @@ def update_scan_session(session_id: int, body: dict, db: Session = Depends(get_d
 # Reports & Analytics endpoints
 # ---------------------------------------------------------------------------
 
+@app.get("/reports/dashboard-stats", dependencies=[Depends(require("targets:read"))])
+def reports_dashboard_stats(db: Session = Depends(get_db)):
+    """Returns all data needed for the dashboard overview in one call."""
+    from sqlalchemy import case as _case, func as _func2
+    targets = db.query(models.Target).all()
+    total = len(targets)
+    listed = sum(1 for t in targets if t.is_blacklisted)
+    clean = sum(1 for t in targets if not t.is_blacklisted and t.last_checked)
+    pending = sum(1 for t in targets if not t.last_checked)
+
+    # Type breakdown
+    type_counts = {}
+    for t in targets:
+        type_counts[t.target_type] = type_counts.get(t.target_type, 0) + 1
+
+    # Country breakdown (top 8, IPs only)
+    country_map: dict = {}
+    for t in targets:
+        if t.target_type in ('ip', 'subnet') and t.country_code:
+            cc = t.country_code.upper()
+            country_map[cc] = country_map.get(cc, 0) + 1
+    top_countries = sorted([{"country": k, "count": v} for k, v in country_map.items()], key=lambda x: -x["count"])[:8]
+
+    # Score distribution buckets: 0-20, 21-40, 41-60, 61-80, 81-100
+    score_buckets = [0, 0, 0, 0, 0]
+    scored = [t for t in targets if t.reputation_score is not None]
+    for t in scored:
+        s = t.reputation_score
+        if s <= 20: score_buckets[0] += 1
+        elif s <= 40: score_buckets[1] += 1
+        elif s <= 60: score_buckets[2] += 1
+        elif s <= 80: score_buckets[3] += 1
+        else: score_buckets[4] += 1
+    avg_score = round(sum(t.reputation_score for t in scored) / len(scored)) if scored else None
+
+    # Auth breakdown (domains)
+    domains = [t for t in targets if t.target_type == 'domain']
+    auth_stats = {
+        "total_domains": len(domains),
+        "has_spf": sum(1 for t in domains if t.has_spf),
+        "has_dkim": sum(1 for t in domains if t.has_dkim),
+        "has_dmarc": sum(1 for t in domains if t.has_dmarc),
+        "dmarc_enforced": sum(1 for t in domains if t.dmarc_policy in ('quarantine', 'reject')),
+    }
+
+    # Recent listing events (last 10)
+    thirty_ago = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=30)
+    events = db.query(models.AlertLog).filter(
+        models.AlertLog.to_status == "listed",
+        models.AlertLog.created_at >= thirty_ago,
+    ).order_by(models.AlertLog.created_at.desc()).limit(10).all()
+    recent_events = [{"address": e.target_address, "at": e.created_at.isoformat() if e.created_at else None} for e in events]
+
+    return {
+        "total": total, "listed": listed, "clean": clean, "pending": pending,
+        "type_counts": type_counts,
+        "top_countries": top_countries,
+        "score_buckets": score_buckets,
+        "avg_score": avg_score,
+        "auth_stats": auth_stats,
+        "recent_events": recent_events,
+    }
+
+
 @app.get("/reports/summary", dependencies=[Depends(require("targets:read"))])
 def reports_summary(db: Session = Depends(get_db)):
     total = db.query(_func.count(models.Target.id)).scalar() or 0
