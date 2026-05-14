@@ -143,6 +143,7 @@ class BulkDeleteRequest(BaseModel):
 
 class BulkAddRequest(BaseModel):
     values: list[str]
+    expand_subnets: bool = False  # if True, expand CIDRs into individual IPs
 
 
 def infer_target_type(value: str) -> str:
@@ -323,6 +324,100 @@ def scan_subnet_progress(request: Request, scan_id: str):
     }
 
 
+class BulkScanRequest(BaseModel):
+    cidrs: list[str]
+
+
+@app.post("/scan/subnets/bulk", dependencies=[Depends(require("scan:run"))])
+@limiter.limit("3/minute")
+def bulk_scan_start(request: Request, body: BulkScanRequest):
+    """Start async DNSBL scans for multiple subnets. Returns batch_id to poll progress."""
+    if not body.cidrs:
+        raise HTTPException(status_code=422, detail="cidrs array required")
+    if len(body.cidrs) > 100:
+        raise HTTPException(status_code=422, detail="Max 100 subnets per batch")
+
+    TTL = 7200
+    batch_id = str(uuid.uuid4())
+    scans = []
+
+    for raw_cidr in body.cidrs:
+        try:
+            net = ipaddress.ip_network(raw_cidr.strip(), strict=False)
+        except ValueError:
+            continue
+        if net.version != 4:
+            continue
+        ips = [str(ip) for ip in net.hosts()] or [str(net.network_address)]
+        total = len(ips)
+        scan_id = str(uuid.uuid4())
+        _rclient.setex(f"scan:{scan_id}:info", TTL, json.dumps({"cidr": str(net), "total": total, "complete": False}))
+        _rclient.setex(f"scan:{scan_id}:done", TTL, 0)
+        tasks.scan_subnet_task.delay(scan_id, str(net))
+        scans.append({"cidr": str(net), "scan_id": scan_id, "total": total})
+
+    _rclient.setex(f"batch:{batch_id}:scans", TTL, json.dumps(scans))
+    return {"batch_id": batch_id, "subnet_count": len(scans), "scans": scans}
+
+
+@app.get("/scan/subnets/bulk/{batch_id}", dependencies=[Depends(require("scan:run"))])
+def bulk_scan_progress(request: Request, batch_id: str):
+    """Poll aggregate progress for a bulk subnet scan batch."""
+    raw = _rclient.get(f"batch:{batch_id}:scans")
+    if not raw:
+        raise HTTPException(status_code=404, detail="Batch not found or expired")
+    scans = json.loads(raw)
+
+    subnets = []
+    total_ips = 0
+    total_done = 0
+    total_listed = 0
+    all_complete = True
+
+    for s in scans:
+        scan_id = s["scan_id"]
+        info_raw = _rclient.get(f"scan:{scan_id}:info")
+        if not info_raw:
+            subnets.append({"cidr": s["cidr"], "scan_id": scan_id, "total": s["total"], "done": s["total"], "listed": 0, "complete": True, "results": []})
+            total_ips += s["total"]
+            total_done += s["total"]
+            continue
+        info = json.loads(info_raw)
+        done = int(_rclient.get(f"scan:{scan_id}:done") or 0)
+        results = [json.loads(r) for r in _rclient.lrange(f"scan:{scan_id}:results", 0, -1)]
+        listed = sum(1 for r in results if r["is_blacklisted"])
+        complete = info.get("complete", False)
+        if complete:
+            _rclient.delete(f"scan:{scan_id}:info", f"scan:{scan_id}:done", f"scan:{scan_id}:results")
+        else:
+            all_complete = False
+        subnets.append({
+            "cidr": s["cidr"],
+            "scan_id": scan_id,
+            "total": info["total"],
+            "done": done,
+            "listed": listed,
+            "complete": complete,
+            "results": results,
+        })
+        total_ips += info["total"]
+        total_done += done
+        total_listed += listed
+
+    if all_complete:
+        _rclient.delete(f"batch:{batch_id}:scans")
+
+    return {
+        "batch_id": batch_id,
+        "subnet_count": len(scans),
+        "total_ips": total_ips,
+        "total_done": total_done,
+        "total_listed": total_listed,
+        "complete": all_complete,
+        "subnets": subnets,
+    }
+
+
 @app.post("/targets/", dependencies=[Depends(require("targets:write"))], response_model=TargetResponse)
 @limiter.limit("5/minute")
 def add_target(request: Request, target: TargetCreate, db: Session = Depends(get_db)):
@@ -366,21 +461,32 @@ def add_target(request: Request, target: TargetCreate, db: Session = Depends(get
 @app.post("/targets/bulk-add", dependencies=[Depends(require("targets:write"))], response_model=dict)
 @limiter.limit("5/minute")
 def bulk_add_targets(request: Request, body: BulkAddRequest, db: Session = Depends(get_db)):
-    """Bulk add multiple targets (IPs, domains, subnets). Returns per-item results."""
+    """Bulk add multiple targets (IPs, domains, subnets).
+    If expand_subnets=True, CIDRs are expanded to individual IPs instead of added as a subnet target."""
+    from .checker import lookup_org_for_target, lookup_org
+
     added = []
     skipped = []
     errors = []
+
+    def _add_one(value: str, target_type: str):
+        existing = db.query(models.Target).filter(models.Target.address == value).first()
+        if existing:
+            skipped.append({"value": value, "reason": "already exists"})
+            return
+        org = lookup_org_for_target(value, target_type)
+        new_target = models.Target(address=value, target_type=target_type, org=org)
+        db.add(new_target)
+        db.commit()
+        db.refresh(new_target)
+        tasks.monitor_target_task.delay(new_target.id)
+        added.append({"value": value, "id": new_target.id, "type": target_type})
 
     for raw in body.values:
         value = raw.strip().lower()
         if not value:
             continue
         try:
-            existing = db.query(models.Target).filter(models.Target.address == value).first()
-            if existing:
-                skipped.append({"value": value, "reason": "already exists"})
-                continue
-
             target_type = infer_target_type(value)
 
             if target_type == "ip":
@@ -388,25 +494,46 @@ def bulk_add_targets(request: Request, body: BulkAddRequest, db: Session = Depen
                 if addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved or addr.is_unspecified:
                     errors.append({"value": value, "reason": "private/reserved IP"})
                     continue
+                _add_one(value, "ip")
 
-            if target_type == "subnet":
-                net = ipaddress.ip_network(value, strict=False)
+            elif target_type == "subnet":
+                try:
+                    net = ipaddress.ip_network(value, strict=False)
+                except ValueError:
+                    errors.append({"value": value, "reason": "invalid CIDR"})
+                    continue
                 if net.version != 4:
                     errors.append({"value": value, "reason": "only IPv4 subnets supported"})
                     continue
                 if net.is_private or net.is_loopback or net.is_link_local or net.is_reserved:
                     errors.append({"value": value, "reason": "private/reserved subnet"})
                     continue
-                value = str(net)
 
-            from .checker import lookup_org_for_target
-            org = lookup_org_for_target(value, target_type)
-            new_target = models.Target(address=value, target_type=target_type, org=org)
-            db.add(new_target)
-            db.commit()
-            db.refresh(new_target)
-            tasks.monitor_target_task.delay(new_target.id)
-            added.append({"value": value, "id": new_target.id, "type": target_type})
+                if body.expand_subnets:
+                    # Expand CIDR to individual IPs
+                    subnet_org = lookup_org(str(net.network_address))
+                    ips = [str(ip) for ip in net.hosts()] or [str(net.network_address)]
+                    existing_set = {
+                        r[0] for r in db.query(models.Target.address).filter(models.Target.address.in_(ips)).all()
+                    }
+                    new_ips = [ip for ip in ips if ip not in existing_set]
+                    if existing_set:
+                        skipped.append({"value": value, "reason": f"{len(existing_set)} IPs already exist"})
+                    db.bulk_save_objects([
+                        models.Target(address=ip, target_type="ip", is_blacklisted=False, org=subnet_org)
+                        for ip in new_ips
+                    ], return_defaults=True)
+                    db.commit()
+                    inserted = db.query(models.Target).filter(models.Target.address.in_(new_ips)).all()
+                    for t in inserted:
+                        tasks.monitor_target_task.delay(t.id)
+                        added.append({"value": t.address, "id": t.id, "type": "ip"})
+                else:
+                    _add_one(str(net), "subnet")
+
+            else:
+                _add_one(value, "domain")
+
         except Exception as e:
             db.rollback()
             errors.append({"value": value, "reason": str(e)})

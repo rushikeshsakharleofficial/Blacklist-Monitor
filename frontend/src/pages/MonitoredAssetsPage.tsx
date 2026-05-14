@@ -18,6 +18,7 @@ const MonitoredAssetsPage: React.FC = () => {
   const [bulkText, setBulkText] = useState('');
   const [bulkLoading, setBulkLoading] = useState(false);
   const [bulkResult, setBulkResult] = useState<{ added: number; skipped: number; errors: number } | null>(null);
+  const [expandSubnets, setExpandSubnets] = useState(true);
 
   const fetchTargets = async () => {
     try {
@@ -77,7 +78,7 @@ const MonitoredAssetsPage: React.FC = () => {
     setBulkLoading(true);
     setBulkResult(null);
     try {
-      const res = await axios.post(`${API_BASE_URL}/targets/bulk-add`, { values });
+      const res = await axios.post(`${API_BASE_URL}/targets/bulk-add`, { values, expand_subnets: expandSubnets });
       const data = res.data;
       setBulkResult({ added: data.added, skipped: data.skipped, errors: data.errors });
       if (data.added > 0) fetchTargets();
@@ -199,6 +200,17 @@ const MonitoredAssetsPage: React.FC = () => {
                 value={bulkText}
                 onChange={e => setBulkText(e.target.value)}
               />
+              <label className="flex items-center gap-2 mt-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={expandSubnets}
+                  onChange={e => setExpandSubnets(e.target.checked)}
+                  className="accent-blue-500"
+                />
+                <span className="text-[11px]" style={{ color: '#8fa8c0' }}>
+                  Expand subnets to individual IPs (e.g. /24 → 254 IPs each monitored separately)
+                </span>
+              </label>
               {bulkResult && (
                 <div className="mt-2 text-xs flex gap-4">
                   <span style={{ color: '#27ae60' }} className="font-bold">Added: {bulkResult.added}</span>
