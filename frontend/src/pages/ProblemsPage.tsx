@@ -115,6 +115,87 @@ export default function ProblemsPage() {
     URL.revokeObjectURL(url);
   };
 
+  const exportHTML = () => {
+    const esc = (s: string) => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const subnetMap: Record<string, ListedTarget[]> = {};
+    filtered.forEach(t => {
+      const parts = t.address.split('.');
+      const subnet = parts.length === 4 ? `${parts[0]}.${parts[1]}.${parts[2]}.0/24` : 'Other';
+      if (!subnetMap[subnet]) subnetMap[subnet] = [];
+      subnetMap[subnet].push(t);
+    });
+    const sortedSubnets = Object.entries(subnetMap).sort((a, b) => a[0].localeCompare(b[0]));
+    const generated = new Date().toLocaleString();
+
+    const subnetSections = sortedSubnets.map(([subnet, ips]) => {
+      const sorted = [...ips].sort((a, b) => a.address.localeCompare(b.address, undefined, { numeric: true }));
+      const rows = sorted.map((t, i) => `
+        <tr style="background:${i%2===0?'#fff':'#f8f9fa'}">
+          <td style="font-family:monospace;font-weight:bold;color:#2c3e50">${esc(t.address)}</td>
+          <td style="color:#666;font-size:11px;text-transform:uppercase">${esc(t.target_type)}</td>
+          <td>${t.hits.map(h => `<span style="display:inline-block;font-family:monospace;font-size:10px;padding:2px 6px;margin:1px;background:#fce8e6;border:1px solid #e74c3c;color:#c0392b;border-radius:2px">${esc(h)}</span>`).join('')}</td>
+          <td style="text-align:center;font-weight:bold;color:#e74c3c;font-family:monospace">${t.hits.length}/${t.total_checked}</td>
+          <td style="color:#888;font-size:11px">${t.last_checked ? new Date(t.last_checked).toLocaleString() : '—'}</td>
+        </tr>`).join('');
+      return `
+      <div style="margin-bottom:24px">
+        <div style="background:#2c3e50;color:white;padding:8px 12px;font-weight:bold;font-size:13px;border-radius:3px 3px 0 0;display:flex;justify-content:space-between">
+          <span>${esc(subnet)}</span>
+          <span style="background:#e74c3c;padding:2px 8px;border-radius:10px;font-size:11px">${ips.length} LISTED</span>
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:12px;border:1px solid #ddd">
+          <thead>
+            <tr style="background:#34495e;color:white">
+              <th style="padding:6px 10px;text-align:left;width:120px">IP Address</th>
+              <th style="padding:6px 10px;text-align:left;width:60px">Type</th>
+              <th style="padding:6px 10px;text-align:left">Blacklisted On (DNSBL Zones)</th>
+              <th style="padding:6px 10px;text-align:center;width:60px">Hits</th>
+              <th style="padding:6px 10px;text-align:left;width:150px">Last Checked</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+    }).join('');
+
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Blacklist Report — ${generated}</title>
+<style>
+  body{font-family:Arial,sans-serif;background:#f5f5f5;margin:0;padding:24px;color:#333}
+  h1{color:#2c3e50;margin:0 0 4px}
+  .meta{color:#888;font-size:12px;margin-bottom:20px}
+  .summary{display:flex;gap:16px;margin-bottom:20px}
+  .stat{background:#fff;border:1px solid #ddd;padding:12px 20px;border-radius:3px;min-width:120px}
+  .stat-val{font-size:24px;font-weight:bold;font-family:monospace}
+  .stat-label{font-size:10px;text-transform:uppercase;color:#888;margin-top:2px}
+  td,th{padding:6px 10px;border:1px solid #e0e0e0}
+  @media print{body{background:white;padding:0}}
+</style>
+</head>
+<body>
+<h1>🚨 Blacklist Monitor — Listed IP Report</h1>
+<div class="meta">Generated: ${generated} &nbsp;|&nbsp; Filter: ${filtered.length === targets.length ? 'All listed IPs' : `"${esc(search)}" — ${filtered.length} matched`}</div>
+<div class="summary">
+  <div class="stat"><div class="stat-val" style="color:#e74c3c">${filtered.length}</div><div class="stat-label">Listed IPs</div></div>
+  <div class="stat"><div class="stat-val" style="color:#6c3483">${sortedSubnets.length}</div><div class="stat-label">Subnets</div></div>
+  <div class="stat"><div class="stat-val" style="color:#336699">${filtered.reduce((a,t)=>a+t.hits.length,0)}</div><div class="stat-label">Total Hits</div></div>
+</div>
+${subnetSections}
+</body>
+</html>`;
+
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `blacklist_report_${new Date().toISOString().slice(0,10)}.html`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const forceRecheckAll = async () => {
     setRechecking(true);
     setRecheckMsg(null);
@@ -266,6 +347,12 @@ export default function ProblemsPage() {
             style={{ background: '#27ae60', borderRadius: 2 }}>
             <Download size={11} />
             Export CSV
+          </button>
+          <button onClick={exportHTML} disabled={filtered.length === 0}
+            className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-bold text-white border border-[#2a5580] disabled:opacity-50 uppercase tracking-wide"
+            style={{ background: '#336699', borderRadius: 2 }}>
+            <Download size={11} />
+            Export HTML
           </button>
           <div className={`flex items-center gap-1 text-[11px] font-bold px-2 py-1 border ${connected ? 'text-success border-success bg-success-bg' : 'text-danger border-danger bg-danger-bg'}`} style={{ borderRadius: 2 }}>
             {connected ? <><Wifi size={11} /> Live</> : <><WifiOff size={11} /> Reconnecting{retryCount > 0 ? ` (${retryCount})` : ''}…</>}
