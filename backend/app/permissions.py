@@ -1,3 +1,4 @@
+from __future__ import annotations
 ALL_PERMISSIONS: list[str] = [
     # Monitored assets
     "targets:read",

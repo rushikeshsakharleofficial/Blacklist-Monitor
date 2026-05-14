@@ -1,3 +1,4 @@
+from __future__ import annotations
 import threading
 import ipaddress
 from concurrent.futures import ThreadPoolExecutor, as_completed

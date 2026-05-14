@@ -17,5 +17,9 @@ celery_app.conf.update(
             'task': 'app.tasks.monitor_all_targets_task',
             'schedule': 1800.0,
         },
+        'prune-old-check-history-daily': {
+            'task': 'app.tasks.prune_old_history_task',
+            'schedule': 86400.0,
+        },
     },
 )

@@ -1,6 +1,7 @@
 import json
 import logging
 import datetime
+import os as _os
 from .worker import celery_app
 from .checker import check_target, check_subnet_cidr, COMMON_DNSBLS, lookup_org_for_target
 from .database import SessionLocal
@@ -81,5 +82,24 @@ def monitor_all_targets_task():
             monitor_target_task.delay(target.id)
         logger.info("batch_queued", extra={"count": len(targets)})
         return f"Queued {len(targets)} targets"
+    finally:
+        db.close()
+
+
+@celery_app.task
+def prune_old_history_task(days: int = None):
+    if days is None:
+        days = int(_os.getenv("HISTORY_RETENTION_DAYS", "90"))
+    db = SessionLocal()
+    try:
+        cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=days)
+        deleted = (
+            db.query(CheckHistory)
+            .filter(CheckHistory.checked_at < cutoff)
+            .delete(synchronize_session=False)
+        )
+        db.commit()
+        logger.info("history_pruned", extra={"deleted": deleted, "cutoff": cutoff.isoformat()})
+        return f"Pruned {deleted} old check history records"
     finally:
         db.close()

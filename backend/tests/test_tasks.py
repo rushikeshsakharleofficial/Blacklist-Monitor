@@ -125,3 +125,30 @@ def test_monitor_all_targets_queues_each(db):
                 monitor_all_targets_task.run()
 
     assert mock_task.delay.call_count == 3
+
+
+def test_prune_old_history_deletes_old_records(db):
+    import datetime
+    from app.tasks import prune_old_history_task
+    from app.models import Target, CheckHistory
+
+    target = Target(address="9.9.9.9", target_type="ip")
+    db.add(target)
+    db.commit()
+    db.refresh(target)
+
+    old_ts = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=100)
+    recent_ts = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=10)
+
+    db.add(CheckHistory(target_id=target.id, status=False, details="old", checked_at=old_ts))
+    db.add(CheckHistory(target_id=target.id, status=False, details="recent", checked_at=recent_ts))
+    db.commit()
+
+    with patch.object(db, "close"):
+        with patch("app.tasks.SessionLocal", return_value=db):
+            result = prune_old_history_task.run(days=90)
+
+    assert "1" in result
+    remaining = db.query(CheckHistory).filter(CheckHistory.target_id == target.id).all()
+    assert len(remaining) == 1
+    assert remaining[0].details == "recent"
