@@ -7,7 +7,6 @@ import secrets
 import datetime as dt
 import ipaddress
 import uuid
-import threading
 from contextlib import asynccontextmanager
 from typing import Optional
 import asyncio
@@ -231,9 +230,7 @@ def list_dnsbl_providers():
     return {"providers": checker.COMMON_DNSBLS, "total": len(checker.COMMON_DNSBLS)}
 
 
-_REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
-import redis as _redis_lib
-_rclient = _redis_lib.Redis.from_url(_REDIS_URL, decode_responses=True)
+from .redis_client import rclient as _rclient
 
 
 @app.post("/targets/subnet-expand", dependencies=[Depends(require("targets:bulk"))])
@@ -273,47 +270,23 @@ def subnet_expand(request: Request, body: SubnetScanRequest, db: Session = Depen
 @app.post("/scan/subnet", dependencies=[Depends(require("scan:run"))])
 @limiter.limit("5/minute")
 def scan_subnet_start(request: Request, body: SubnetScanRequest):
-    """Start async subnet scan. Returns scan_id to poll for progress via GET /scan/subnet/{scan_id}."""
-    from concurrent.futures import ThreadPoolExecutor, as_completed as asc
+    """Start async subnet scan via Celery. Poll GET /scan/subnet/{scan_id} for progress."""
     try:
         net = ipaddress.ip_network(body.cidr.strip(), strict=False)
     except ValueError:
         raise HTTPException(status_code=422, detail="Invalid CIDR notation (e.g. 192.168.1.0/28)")
     if net.version != 4:
         raise HTTPException(status_code=422, detail="Only IPv4 subnets supported")
+
     ips = [str(ip) for ip in net.hosts()] or [str(net.network_address)]
     total = len(ips)
-    workers = min(total, 32)
     scan_id = str(uuid.uuid4())
     TTL = 3600
 
-    # Store initial state in Redis — shared across all uvicorn workers
     _rclient.setex(f"scan:{scan_id}:info", TTL, json.dumps({"cidr": str(net), "total": total, "complete": False}))
     _rclient.setex(f"scan:{scan_id}:done", TTL, 0)
 
-    def _run():
-        subnet_org = checker.lookup_org(str(net.network_address))
-        with ThreadPoolExecutor(max_workers=workers) as executor:
-            futures = {executor.submit(checker.check_dnsbl, ip): ip for ip in ips}
-            try:
-                for future in asc(futures, timeout=max(300, total * 2)):
-                    ip = futures[future]
-                    try:
-                        hits = future.result()
-                    except Exception:
-                        hits = []
-                    _rclient.rpush(f"scan:{scan_id}:results", json.dumps({
-                        "ip": ip, "hits": hits, "is_blacklisted": bool(hits),
-                        "total_checked": len(checker.COMMON_DNSBLS),
-                        "org": subnet_org,
-                    }))
-                    _rclient.expire(f"scan:{scan_id}:results", TTL)
-                    _rclient.incr(f"scan:{scan_id}:done")
-            except Exception:
-                pass
-        _rclient.setex(f"scan:{scan_id}:info", TTL, json.dumps({"cidr": str(net), "total": total, "complete": True}))
-
-    threading.Thread(target=_run, daemon=True).start()
+    tasks.scan_subnet_task.delay(scan_id, str(net))
     return {"scan_id": scan_id, "cidr": str(net), "total": total}
 
 
