@@ -689,44 +689,32 @@ def reports_subnet_breakdown(db: Session = Depends(get_db)):
 
 @app.get("/reports/dnsbl-breakdown", dependencies=[Depends(require("targets:read"))])
 def reports_dnsbl_breakdown(db: Session = Depends(get_db)):
-    listed_ids = [r[0] for r in db.query(models.Target.id).filter(
-        models.Target.is_blacklisted == True
-    ).limit(2000).all()]
-
+    # Scan recent check history for DNSBL hits (not just currently-listed targets)
+    ninety_ago = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=90)
+    rows = (
+        db.query(models.CheckHistory.details)
+        .filter(
+            models.CheckHistory.checked_at >= ninety_ago,
+            models.CheckHistory.status == True,  # only checks that found hits
+        )
+        .limit(5000)
+        .all()
+    )
     zone_counts: dict = {}
-    BATCH = 200
-    for i in range(0, len(listed_ids), BATCH):
-        batch = listed_ids[i:i+BATCH]
-        sub = (
-            db.query(
-                models.CheckHistory.target_id,
-                _func.max(models.CheckHistory.checked_at).label("max_at"),
-            )
-            .filter(models.CheckHistory.target_id.in_(batch))
-            .group_by(models.CheckHistory.target_id)
-            .subquery()
-        )
-        rows = (
-            db.query(models.CheckHistory.details)
-            .join(sub, (models.CheckHistory.target_id == sub.c.target_id) &
-                       (models.CheckHistory.checked_at == sub.c.max_at))
-            .all()
-        )
-        for (details,) in rows:
-            if not details:
-                continue
-            try:
-                data = json.loads(details)
-                hits = data.get("hits", [])
-                for hit in hits:
-                    if isinstance(hit, str):
-                        zone_counts[hit] = zone_counts.get(hit, 0) + 1
-                    elif isinstance(hit, dict):
-                        for z in hit.get("zones", []):
-                            zone_counts[z] = zone_counts.get(z, 0) + 1
-            except Exception:
-                pass
-
+    for (details,) in rows:
+        if not details:
+            continue
+        try:
+            data = json.loads(details)
+            hits = data.get("hits", [])
+            for hit in hits:
+                if isinstance(hit, str):
+                    zone_counts[hit] = zone_counts.get(hit, 0) + 1
+                elif isinstance(hit, dict):
+                    for z in hit.get("zones", []):
+                        zone_counts[z] = zone_counts.get(z, 0) + 1
+        except Exception:
+            pass
     return sorted(
         [{"zone": k, "hits": v} for k, v in zone_counts.items()],
         key=lambda x: -x["hits"],

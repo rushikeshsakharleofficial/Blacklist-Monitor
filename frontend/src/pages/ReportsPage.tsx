@@ -37,7 +37,7 @@ function HBar({ value, max, color = 'var(--accent)', height = 16 }: { value: num
 function DailyChart({ data }: { data: DailyRow[] }) {
   if (!data.length) return <div className="text-text-sec text-sm text-center py-6">No check data yet</div>;
   const maxChecks = Math.max(...data.map(d => d.checks), 1);
-  const W = 720, H = 100, BAR_W = Math.max(4, Math.floor((W - 40) / data.length) - 2);
+  const W = 720, H = 100, BAR_W = Math.min(40, Math.max(4, Math.floor((W - 40) / data.length) - 2));
   const x = (i: number) => 40 + i * ((W - 40) / data.length) + (((W - 40) / data.length) - BAR_W) / 2;
   return (
     <svg width="100%" viewBox={`0 0 ${W} ${H + 24}`} style={{ display: 'block' }}>
