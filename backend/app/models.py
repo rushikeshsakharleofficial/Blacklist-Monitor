@@ -45,6 +45,11 @@ class AdminUser(Base):
     last_login = Column(DateTime(timezone=True), nullable=True)
     auth_source = Column(String(16), nullable=False, default='local')  # 'local' | 'ldap'
     ldap_dn = Column(String(512), nullable=True)
+    totp_secret_enc = Column(Text, nullable=True)
+    totp_enabled = Column(Boolean, nullable=False, default=False)
+    email_otp_enabled = Column(Boolean, nullable=False, default=False)
+    mfa_enrolled_at = Column(DateTime(timezone=True), nullable=True)
+    mfa_recovery_codes = Column(Text, nullable=True)
 
     role = relationship("Role", back_populates="users")
     created_by_user = relationship("AdminUser", remote_side="AdminUser.id", foreign_keys="AdminUser.created_by")

@@ -23,7 +23,7 @@ from . import ldap_auth as _ldap_auth
 from .logging_config import setup_logging
 from .auth import get_db, get_current_user, require, hash_password, verify_password, _user_permissions, SESSION_COOKIE
 from .permissions import BUILTIN_ROLES
-from .routers import users as users_router, roles as roles_router, audit as audit_router, alerts as alerts_router
+from .routers import users as users_router, roles as roles_router, audit as audit_router, alerts as alerts_router, mfa as mfa_router
 import json
 
 setup_logging()
@@ -83,6 +83,7 @@ app.include_router(users_router.router)
 app.include_router(roles_router.router)
 app.include_router(audit_router.router)
 app.include_router(alerts_router.router)
+app.include_router(mfa_router.router)
 
 
 class SetupRequest(BaseModel):
@@ -268,6 +269,30 @@ def login(request: Request, response: Response, body: LoginRequest, db: Session 
     db.commit()
     perms = _user_permissions(admin)
     logger.info("admin_login", extra={"email": admin.email})
+
+    # Generate short-lived mfa_token stored in Redis
+    from .mfa import mfa_token_key, MFA_TOKEN_TTL
+    from .redis_client import rclient as _rclient_login
+    import secrets as _secrets
+    mfa_tok = _secrets.token_urlsafe(32)
+    _rclient_login.setex(mfa_token_key(mfa_tok), MFA_TOKEN_TTL, str(admin.id))
+
+    # If 2FA enrolled — require verification before issuing session cookie
+    if admin.totp_enabled:
+        return {
+            "mfa_required": True,
+            "mfa_token": mfa_tok,
+            "email_otp_available": admin.email_otp_enabled,
+        }
+
+    # Not yet enrolled — force enrollment flow
+    if not admin.totp_enabled:
+        return {
+            "setup_required": True,
+            "mfa_token": mfa_tok,
+        }
+
+    # Should not reach here, but set cookie for safety
     max_age = 90 * 24 * 3600 if body.remember_me else None
     response.set_cookie(
         key=SESSION_COOKIE,

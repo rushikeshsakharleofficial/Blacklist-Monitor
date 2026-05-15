@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Settings, Key, LogOut, Server } from 'lucide-react';
+import { Settings, Key, LogOut, Server, Shield, RefreshCw, Check, Copy } from 'lucide-react';
+import OTPInput from '../components/OTPInput';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001';
 const STORAGE_KEY = 'api_key';
@@ -218,7 +219,34 @@ export default function SettingsPage({ onLogout }: SettingsPageProps) {
   const [providers, setProviders] = useState<string[]>([]);
   const [loadingProviders, setLoadingProviders] = useState(true);
 
-  const [activeTab, setActiveTab] = useState<'general' | 'ldap'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'ldap' | 'security'>('general');
+
+  // 2FA state
+  const [mfaStatus, setMfaStatus] = useState<{ enrolled: boolean; email_otp_enabled: boolean; recovery_codes_remaining: number } | null>(null);
+  const [regenCode, setRegenCode] = useState('');
+  const [regenLoading, setRegenLoading] = useState(false);
+  const [regenCodes, setRegenCodes] = useState<string[]>([]);
+  const [regenErr, setRegenErr] = useState<string | null>(null);
+  const [copiedRegen, setCopiedRegen] = useState(false);
+
+  useEffect(() => {
+    if (activeTab === 'security') {
+      axios.get(`${API_BASE_URL}/auth/mfa/status`).then(r => setMfaStatus(r.data)).catch(() => {});
+    }
+  }, [activeTab]);
+
+  const handleRegenCodes = async () => {
+    if (regenCode.length < 6) return;
+    setRegenLoading(true); setRegenErr(null);
+    try {
+      const r = await axios.post(`${API_BASE_URL}/auth/mfa/regenerate-recovery`, { code: regenCode });
+      setRegenCodes(r.data.recovery_codes || []);
+      setRegenCode('');
+      setMfaStatus(s => s ? { ...s, recovery_codes_remaining: 8 } : s);
+    } catch (e: any) {
+      setRegenErr(e.response?.data?.detail || 'Failed to regenerate');
+    } finally { setRegenLoading(false); }
+  };
   const [ldapConfig, setLdapConfig] = useState<LdapConfig>({
     is_enabled: false, host: '', port: 389, tls_mode: 'none',
     bind_dn: '', bind_password: '', user_search_base: '',
@@ -300,7 +328,7 @@ export default function SettingsPage({ onLogout }: SettingsPageProps) {
 
       {/* Tab bar */}
       <div className="flex gap-1 mb-6 border-b border-border-base">
-        {(['general', 'ldap'] as const).map(tab => (
+        {([['general', 'General'], ['security', 'Security'], ['ldap', 'LDAP / AD']] as const).map(([tab, label]) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -310,7 +338,7 @@ export default function SettingsPage({ onLogout }: SettingsPageProps) {
                 : 'border-transparent text-text-sec hover:text-text-base'
             }`}
           >
-            {tab === 'ldap' ? 'LDAP / AD' : 'General'}
+            {label}
           </button>
         ))}
       </div>
@@ -406,6 +434,77 @@ export default function SettingsPage({ onLogout }: SettingsPageProps) {
                   Custom DNSBL providers, check intervals, and notification preferences coming in a future release.
                 </p>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'security' && (
+        <div className="space-y-5">
+          {/* 2FA Status */}
+          <div className="bg-surface border border-border-base rounded-xl overflow-hidden">
+            <div className="flex items-center gap-2 px-4 py-3 border-b border-border-base">
+              <Shield size={15} className="text-accent" />
+              <span className="text-sm font-semibold text-text-base">Two-Factor Authentication</span>
+              {mfaStatus?.enrolled && (
+                <span className="ml-auto text-[10px] font-semibold px-2 py-0.5 rounded-full bg-success-bg text-success uppercase tracking-wide">Active</span>
+              )}
+            </div>
+            <div className="p-5">
+              {!mfaStatus ? (
+                <p className="text-sm text-text-muted">Loading…</p>
+              ) : mfaStatus.enrolled ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-subtle rounded-lg p-3">
+                      <div className="text-xs text-text-muted mb-1">Recovery codes left</div>
+                      <div className={`text-lg font-bold ${mfaStatus.recovery_codes_remaining <= 2 ? 'text-danger' : 'text-text-base'}`}>
+                        {mfaStatus.recovery_codes_remaining} / 8
+                      </div>
+                    </div>
+                    <div className="bg-subtle rounded-lg p-3">
+                      <div className="text-xs text-text-muted mb-1">Email OTP fallback</div>
+                      <div className="text-sm font-medium text-text-base">{mfaStatus.email_otp_enabled ? 'Enabled' : 'Disabled'}</div>
+                    </div>
+                  </div>
+
+                  {mfaStatus.recovery_codes_remaining <= 2 && (
+                    <p className="text-xs text-danger font-medium">⚠ Low recovery codes — regenerate soon.</p>
+                  )}
+
+                  {/* Regenerate recovery codes */}
+                  {regenCodes.length === 0 ? (
+                    <div>
+                      <p className="text-xs text-text-sec mb-3">Enter your current authenticator code to generate new recovery codes. This invalidates all existing ones.</p>
+                      <OTPInput value={regenCode} onChange={setRegenCode} onComplete={handleRegenCodes} disabled={regenLoading} />
+                      {regenErr && <p className="text-xs text-danger text-center mt-2">{regenErr}</p>}
+                      <button onClick={handleRegenCodes} disabled={regenCode.length < 6 || regenLoading}
+                        className="w-full mt-3 flex items-center justify-center gap-1.5 py-2 border border-border-base rounded-lg text-xs font-medium text-text-base hover:bg-subtle disabled:opacity-40 transition-colors">
+                        <RefreshCw size={12} /> Regenerate Recovery Codes
+                      </button>
+                    </div>
+                  ) : (
+                    <div>
+                      <p className="text-xs text-success font-medium mb-2">✓ New recovery codes generated. Save them now.</p>
+                      <div className="bg-subtle border border-border-base rounded-lg p-3 grid grid-cols-2 gap-1 mb-2">
+                        {regenCodes.map((c, i) => (
+                          <span key={i} className="font-mono text-xs text-text-base text-center py-1 px-2 bg-surface rounded border border-border-base">{c}</span>
+                        ))}
+                      </div>
+                      <button onClick={() => { navigator.clipboard.writeText(regenCodes.join('\n')); setCopiedRegen(true); setTimeout(() => setCopiedRegen(false), 2000); }}
+                        className="w-full flex items-center justify-center gap-1.5 py-2 border border-border-base rounded-lg text-xs font-medium hover:bg-subtle transition-colors">
+                        {copiedRegen ? <><Check size={11} className="text-success" /> Copied</> : <><Copy size={11} /> Copy all</>}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-4">
+                  <Shield size={28} className="text-text-muted mx-auto mb-3 opacity-40" />
+                  <p className="text-sm font-semibold text-text-base mb-1">2FA not enrolled</p>
+                  <p className="text-sm text-text-sec">Sign out and sign back in to complete enrollment.</p>
+                </div>
+              )}
             </div>
           </div>
         </div>

@@ -19,6 +19,8 @@ import UsersPage from './pages/UsersPage';
 import RolesPage from './pages/RolesPage';
 import ScanSessionsPage from './pages/ScanSessionsPage';
 import DashboardPage from './pages/DashboardPage';
+import MFASetupPage from './pages/MFASetupPage';
+import MFAVerifyPage from './pages/MFAVerifyPage';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001';
 if (import.meta.env.PROD && API_BASE_URL.startsWith('http:')) {
@@ -145,6 +147,12 @@ function App() {
   const storedEmail = localStorage.getItem(EMAIL_KEY) ?? '';
   const storedName = localStorage.getItem(NAME_KEY) ?? '';
   const [isLoggedIn, setIsLoggedIn] = useState(storedEmail !== '');
+  // MFA intermediate state — never persisted to localStorage
+  const [mfaState, setMfaState] = useState<{
+    token: string;
+    mode: 'setup' | 'verify';
+    emailOtpAvailable: boolean;
+  } | null>(null);
   const [loginForm, setLoginForm] = useState({ email: '', password: '', rememberMe: true });
   const [loginError, setLoginError] = useState<string | null>(null);
   const navigate = useNavigate();
@@ -193,7 +201,24 @@ function App() {
         password: loginForm.password,
         remember_me: loginForm.rememberMe,
       });
-      const { email, name, permissions, role } = res.data;
+      const data = res.data;
+
+      // MFA enrollment required (first login after feature ships)
+      if (data.setup_required) {
+        setMfaState({ token: data.mfa_token, mode: 'setup', emailOtpAvailable: false });
+        setLoginError(null);
+        return;
+      }
+
+      // MFA verification required (enrolled user)
+      if (data.mfa_required) {
+        setMfaState({ token: data.mfa_token, mode: 'verify', emailOtpAvailable: data.email_otp_available ?? false });
+        setLoginError(null);
+        return;
+      }
+
+      // Direct login (should not occur with mandatory 2FA, but handled for safety)
+      const { email, name, permissions, role } = data;
       // Cookie set by backend (httpOnly) — only store non-sensitive user info
       localStorage.setItem(EMAIL_KEY, email);
       localStorage.setItem(NAME_KEY, name || '');
@@ -210,8 +235,24 @@ function App() {
   const handleLogout = async () => {
     try { await axios.post(`${API_BASE_URL}/auth/logout`); } catch {}
     [EMAIL_KEY, NAME_KEY, PERMS_KEY, 'user_role'].forEach(k => localStorage.removeItem(k));
+    setMfaState(null);
     setIsLoggedIn(false);
     navigate('/login', { replace: true });
+  };
+
+  const handleMFAComplete = (userInfo: Record<string, unknown>) => {
+    const email = typeof userInfo.email === 'string' ? userInfo.email : '';
+    const name = typeof userInfo.name === 'string' ? userInfo.name : '';
+    const role = typeof userInfo.role === 'string' ? userInfo.role : '';
+    const permissions = Array.isArray(userInfo.permissions) ? userInfo.permissions : [];
+    if (!email) return; // invalid response — don't pollute localStorage
+    localStorage.setItem(EMAIL_KEY, email);
+    localStorage.setItem(NAME_KEY, name);
+    localStorage.setItem(PERMS_KEY, JSON.stringify(permissions));
+    localStorage.setItem('user_role', role);
+    setMfaState(null);
+    setIsLoggedIn(true);
+    navigate('/dashboard', { replace: true });
   };
 
   const loginPage = (
@@ -292,6 +333,25 @@ function App() {
   );
 
   if (!isLoggedIn) {
+    // MFA setup required — show enrollment wizard
+    if (mfaState?.mode === 'setup') {
+      return (
+        <MFASetupPage
+          mfaToken={mfaState.token}
+          onComplete={handleMFAComplete}
+        />
+      );
+    }
+    // MFA verification required — show verify screen
+    if (mfaState?.mode === 'verify') {
+      return (
+        <MFAVerifyPage
+          mfaToken={mfaState.token}
+          emailOtpAvailable={mfaState.emailOtpAvailable}
+          onComplete={handleMFAComplete}
+        />
+      );
+    }
     return (
       <Routes>
         <Route path="/setup" element={<SetupPage />} />

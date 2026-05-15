@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import { Users, Plus, RefreshCw, Key, UserX, UserCheck, ChevronDown } from 'lucide-react';
+import { Users, Plus, RefreshCw, Key, UserX, UserCheck, ChevronDown, ShieldOff } from 'lucide-react';
 import { ConfirmDialog, ApiKeyDialog, ErrorDialog } from '../components/Dialog';
 
 const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001';
@@ -85,7 +85,7 @@ function CreateUserForm({ roles, onCreated, onCancel }: CreateUserFormProps) {
 }
 
 interface DialogState {
-  type: 'confirm-deactivate' | 'confirm-reset-key' | 'show-key' | 'error';
+  type: 'confirm-deactivate' | 'confirm-reset-key' | 'confirm-reset-2fa' | 'show-key' | 'error';
   user?: User;
   apiKey?: string;
   message?: string;
@@ -175,6 +175,13 @@ function UserRow({ user, roles, currentUserId, myPermissions, onRefresh, onDialo
               <Key size={13} />
             </button>
           )}
+          {canWrite && !isSelf && (
+            <button onClick={() => onDialog({ type: 'confirm-reset-2fa', user })}
+              className="p-1.5 text-text-sec hover:text-danger border border-border-base rounded-md bg-surface hover:bg-subtle transition-colors"
+              title="Reset 2FA">
+              <ShieldOff size={13} />
+            </button>
+          )}
         </div>
       </td>
     </tr>
@@ -234,6 +241,18 @@ export default function UsersPage() {
     }
   };
 
+  const handleConfirmReset2FA = async () => {
+    const user = dialog?.user;
+    if (!user) return;
+    setDialog(null);
+    try {
+      await axios.delete(`${API}/auth/mfa/${user.id}`);
+      load();
+    } catch (ex: any) {
+      setDialog({ type: 'error', message: ex.response?.data?.detail || 'Failed to reset 2FA' });
+    }
+  };
+
   return (
     <div>
       {dialog?.type === 'confirm-deactivate' && dialog.user && (
@@ -252,6 +271,16 @@ export default function UsersPage() {
           detail="Their current API key will stop working immediately. You will receive the new key to share with them."
           confirmLabel="Reset Key"
           onConfirm={handleConfirmResetKey}
+          onCancel={() => setDialog(null)}
+        />
+      )}
+      {dialog?.type === 'confirm-reset-2fa' && dialog.user && (
+        <ConfirmDialog
+          danger
+          message={`Reset 2FA for ${dialog.user.email}?`}
+          detail="This disables two-factor authentication for this user. They will be forced to re-enroll on next login."
+          confirmLabel="Reset 2FA"
+          onConfirm={handleConfirmReset2FA}
           onCancel={() => setDialog(null)}
         />
       )}
