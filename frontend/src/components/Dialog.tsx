@@ -89,26 +89,55 @@ interface ApiKeyDialogProps {
 
 export function ApiKeyDialog({ email, apiKey, onClose }: ApiKeyDialogProps) {
   const [copied, setCopied] = React.useState(false);
-  const copy = () => {
-    navigator.clipboard.writeText(apiKey);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+  const [confirmed, setConfirmed] = React.useState(false);
+  const copy = () => { navigator.clipboard.writeText(apiKey); setCopied(true); };
+  const handleClose = () => { if (confirmed) onClose(); };
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape' && confirmed) onClose(); };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [confirmed, onClose]);
 
   return (
-    <InfoDialog title="New API Key Generated" onClose={onClose}>
-      <p className="text-sm text-text-sec mb-3">
-        New API key for <span className="font-semibold text-text-base">{email}</span>. Copy it now — it won't be shown again.
-      </p>
-      <div className="flex items-center gap-2 p-3 bg-subtle border border-border-base rounded-lg">
-        <code className="flex-1 text-xs font-mono text-text-base break-all">{apiKey}</code>
-        <button onClick={copy}
-          className="shrink-0 p-1.5 border border-border-base rounded-md bg-surface hover:bg-subtle transition-colors"
-          title="Copy">
-          {copied ? <Check size={13} className="text-success" /> : <Copy size={13} className="text-text-sec" />}
-        </button>
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={handleClose}>
+      <div className="bg-surface border border-border-base rounded-xl w-full max-w-md mx-4 shadow-xl overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center gap-2 px-5 py-4 border-b border-border-base">
+          <Info size={16} className="text-accent" />
+          <span className="font-semibold text-sm text-text-base">New API Key Generated</span>
+          {confirmed && (
+            <button onClick={onClose} className="ml-auto text-text-sec hover:text-text-base"><X size={16} /></button>
+          )}
+        </div>
+        <div className="p-5">
+          <p className="text-sm text-text-sec mb-1">
+            New API key for <span className="font-semibold text-text-base">{email}</span>.
+          </p>
+          <p className="text-xs text-danger font-medium mb-3">
+            ⚠ Copy it now — it will never be shown again. Treat it like a password; never share it.
+          </p>
+          <div className="flex items-center gap-2 p-3 bg-subtle border border-border-base rounded-lg mb-4">
+            <code className="flex-1 text-xs font-mono text-text-base break-all">{apiKey}</code>
+            <button onClick={copy}
+              className="shrink-0 p-1.5 border border-border-base rounded-md bg-surface hover:bg-subtle transition-colors"
+              title="Copy to clipboard">
+              {copied ? <Check size={13} className="text-success" /> : <Copy size={13} className="text-text-sec" />}
+            </button>
+          </div>
+          {!confirmed ? (
+            <button onClick={() => setConfirmed(true)} autoFocus
+              className="w-full py-2 rounded-lg text-sm font-medium bg-accent hover:bg-accent-hover text-white transition-colors">
+              I've copied and saved my API key
+            </button>
+          ) : (
+            <button onClick={onClose}
+              className="w-full py-2 rounded-lg text-sm font-medium border border-border-base bg-surface hover:bg-subtle transition-colors text-text-base flex items-center justify-center gap-1.5">
+              <Check size={14} className="text-success" /> Done — close
+            </button>
+          )}
+        </div>
       </div>
-    </InfoDialog>
+    </div>
   );
 }
 

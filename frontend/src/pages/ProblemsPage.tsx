@@ -209,14 +209,14 @@ ${subnetSections}
   };
 
   useEffect(() => {
-    const apiKey = localStorage.getItem('api_key') || '';
     const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${proto}//${window.location.host}/api/ws/problems?key=${encodeURIComponent(apiKey)}`;
+    const wsUrl = `${proto}//${window.location.host}/api/ws/problems`;
 
     const connect = () => {
       if (wsRef.current?.readyState === WebSocket.OPEN) return;
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
+      // Cookie sent automatically in WS upgrade — no auth message needed
       ws.onopen = () => { setConnected(true); setRetryCount(0); };
       ws.onclose = () => {
         setConnected(false);

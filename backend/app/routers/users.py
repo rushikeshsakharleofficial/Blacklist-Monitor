@@ -5,7 +5,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from .. import models
-from ..auth import get_db, require, get_current_user, hash_password, verify_password, _user_permissions
+from ..auth import get_db, require, get_current_user, hash_password, verify_password, _user_permissions, _hash_api_key
+from ..limiter import limiter
 from ..permissions import SELF_PERMISSIONS
 from .audit import write_audit
 
@@ -72,6 +73,7 @@ def change_own_password(
 
 
 @router.post("/me/regenerate-key")
+@limiter.limit("2/minute")
 def regenerate_own_key(
     request: Request,
     user: models.AdminUser = Depends(get_current_user),
@@ -79,6 +81,7 @@ def regenerate_own_key(
 ):
     new_key = secrets.token_urlsafe(32)
     user.api_key = new_key
+    user.api_key_hash = _hash_api_key(new_key)
     db.commit()
     write_audit(db, user, "user.regenerate_key", resource=user.email, request=request)
     return {"api_key": new_key}
@@ -224,6 +227,7 @@ def delete_user(
 
 
 @router.post("/{user_id}/reset-api-key")
+@limiter.limit("2/minute")
 def reset_user_api_key(
     user_id: int,
     request: Request,
@@ -235,6 +239,7 @@ def reset_user_api_key(
         raise HTTPException(404, "User not found")
     new_key = secrets.token_urlsafe(32)
     user.api_key = new_key
+    user.api_key_hash = _hash_api_key(new_key)
     db.commit()
     write_audit(db, caller, "user.reset_key", resource=user.email, request=request)
     return {"api_key": new_key, "email": user.email}

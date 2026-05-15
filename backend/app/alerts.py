@@ -292,7 +292,9 @@ def _send_email(subject: str, html_body: str, c: dict) -> bool:
         msg["To"] = c["smtp_to"]
         msg.attach(MIMEText(html_body, "html"))
         with smtplib.SMTP(c["smtp_server"], int(c["smtp_port"] or 587), timeout=10) as server:
-            server.starttls()
+            resp_code, _ = server.starttls()
+            if resp_code != 220:
+                raise smtplib.SMTPException(f"STARTTLS failed with code {resp_code}")
             server.login(c["smtp_user"], c["smtp_password"])
             server.send_message(msg)
         return True

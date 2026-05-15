@@ -21,11 +21,16 @@ import ScanSessionsPage from './pages/ScanSessionsPage';
 import DashboardPage from './pages/DashboardPage';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001';
-const STORAGE_KEY = 'api_key';
+if (import.meta.env.PROD && API_BASE_URL.startsWith('http:')) {
+  console.error('SECURITY: VITE_API_BASE_URL must use https:// in production. Set it in your .env file.');
+}
+// API key is stored in httpOnly cookie — never in localStorage
 const EMAIL_KEY = 'user_email';
 const NAME_KEY = 'user_name';
-const EXPIRY_KEY = 'session_expiry';
 const PERMS_KEY = 'permissions';
+
+// Send cookies with every request (required for httpOnly session cookie)
+axios.defaults.withCredentials = true;
 
 function Dashboard({ apiBaseUrl }: { apiBaseUrl: string }) {
   const [targets, setTargets] = useState<Target[]>([]);
@@ -136,18 +141,10 @@ function Dashboard({ apiBaseUrl }: { apiBaseUrl: string }) {
 }
 
 function App() {
-  // Check session expiry before reading stored credentials
-  const expiry = localStorage.getItem(EXPIRY_KEY);
-  const isExpired = expiry ? Date.now() > parseInt(expiry) : false;
-  if (isExpired) {
-    [STORAGE_KEY, EMAIL_KEY, NAME_KEY, EXPIRY_KEY, PERMS_KEY].forEach(k => localStorage.removeItem(k));
-  }
-  const storedKey = isExpired ? '' : (localStorage.getItem(STORAGE_KEY) ?? '');
-  const storedEmail = isExpired ? '' : (localStorage.getItem(EMAIL_KEY) ?? '');
-  const storedName = isExpired ? '' : (localStorage.getItem(NAME_KEY) ?? '');
-  // Set synchronously so child components can use it on first render/fetch
-  if (storedKey) axios.defaults.headers.common['X-API-Key'] = storedKey;
-  const [isLoggedIn, setIsLoggedIn] = useState(storedKey !== '');
+  // Auth state from non-sensitive localStorage data; cookie validity confirmed on first 401
+  const storedEmail = localStorage.getItem(EMAIL_KEY) ?? '';
+  const storedName = localStorage.getItem(NAME_KEY) ?? '';
+  const [isLoggedIn, setIsLoggedIn] = useState(storedEmail !== '');
   const [loginForm, setLoginForm] = useState({ email: '', password: '', rememberMe: true });
   const [loginError, setLoginError] = useState<string | null>(null);
   const navigate = useNavigate();
@@ -179,8 +176,7 @@ function App() {
       (res) => res,
       (err) => {
         if (err.response?.status === 401) {
-          [STORAGE_KEY, EMAIL_KEY, NAME_KEY, EXPIRY_KEY, PERMS_KEY, 'user_role'].forEach(k => localStorage.removeItem(k));
-          delete axios.defaults.headers.common['X-API-Key'];
+          [EMAIL_KEY, NAME_KEY, PERMS_KEY, 'user_role'].forEach(k => localStorage.removeItem(k));
           setIsLoggedIn(false);
         }
         return Promise.reject(err);
@@ -195,19 +191,14 @@ function App() {
       const res = await axios.post(`${API_BASE_URL}/auth/login`, {
         email: loginForm.email,
         password: loginForm.password,
+        remember_me: loginForm.rememberMe,
       });
-      const { api_key, email, name, permissions, role } = res.data;
-      axios.defaults.headers.common['X-API-Key'] = api_key;
-      localStorage.setItem(STORAGE_KEY, api_key);
+      const { email, name, permissions, role } = res.data;
+      // Cookie set by backend (httpOnly) — only store non-sensitive user info
       localStorage.setItem(EMAIL_KEY, email);
       localStorage.setItem(NAME_KEY, name || '');
       localStorage.setItem(PERMS_KEY, JSON.stringify(permissions ?? []));
       localStorage.setItem('user_role', role || '');
-      if (loginForm.rememberMe) {
-        localStorage.setItem(EXPIRY_KEY, String(Date.now() + 90 * 24 * 60 * 60 * 1000));
-      } else {
-        localStorage.removeItem(EXPIRY_KEY);
-      }
       setLoginError(null);
       setIsLoggedIn(true);
       navigate('/dashboard', { replace: true });
@@ -216,14 +207,9 @@ function App() {
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem(STORAGE_KEY);
-    localStorage.removeItem(EMAIL_KEY);
-    localStorage.removeItem(NAME_KEY);
-    localStorage.removeItem(EXPIRY_KEY);
-    localStorage.removeItem(PERMS_KEY);
-    localStorage.removeItem('user_role');
-    delete axios.defaults.headers.common['X-API-Key'];
+  const handleLogout = async () => {
+    try { await axios.post(`${API_BASE_URL}/auth/logout`); } catch {}
+    [EMAIL_KEY, NAME_KEY, PERMS_KEY, 'user_role'].forEach(k => localStorage.removeItem(k));
     setIsLoggedIn(false);
     navigate('/login', { replace: true });
   };
@@ -243,14 +229,17 @@ function App() {
           <h2 className="text-sm font-semibold text-text-base mb-1">Sign in to your account</h2>
           <p className="text-xs text-text-sec mb-5">Enter your credentials to continue</p>
 
-          <form onSubmit={handleLogin} className="space-y-4">
+          <form onSubmit={handleLogin} method="post" className="space-y-4">
             <div>
-              <label className="text-xs font-semibold text-text-sec uppercase tracking-wide mb-1.5 block">
+              <label htmlFor="email" className="text-xs font-semibold text-text-sec uppercase tracking-wide mb-1.5 block">
                 Email Address
               </label>
               <input
+                id="email"
+                name="email"
                 type="email"
                 required
+                autoComplete="username"
                 value={loginForm.email}
                 onChange={e => setLoginForm({ ...loginForm, email: e.target.value })}
                 placeholder="you@company.com"
@@ -258,12 +247,15 @@ function App() {
               />
             </div>
             <div>
-              <label className="text-xs font-semibold text-text-sec uppercase tracking-wide mb-1.5 block">
+              <label htmlFor="password" className="text-xs font-semibold text-text-sec uppercase tracking-wide mb-1.5 block">
                 Password
               </label>
               <input
+                id="password"
+                name="password"
                 type="password"
                 required
+                autoComplete="current-password"
                 value={loginForm.password}
                 onChange={e => setLoginForm({ ...loginForm, password: e.target.value })}
                 placeholder="Your password"

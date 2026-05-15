@@ -10,18 +10,18 @@ import uuid
 from contextlib import asynccontextmanager
 from typing import Optional
 import asyncio
-from fastapi import FastAPI, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Depends, HTTPException, Request, Response, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import func as _func, Integer as _Integer
 from pydantic import BaseModel
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+from .limiter import limiter
 from . import models, database, tasks, checker
 from . import ldap_auth as _ldap_auth
 from .logging_config import setup_logging
-from .auth import get_db, get_current_user, require, hash_password, verify_password, _user_permissions
+from .auth import get_db, get_current_user, require, hash_password, verify_password, _user_permissions, SESSION_COOKIE
 from .permissions import BUILTIN_ROLES
 from .routers import users as users_router, roles as roles_router, audit as audit_router, alerts as alerts_router
 import json
@@ -59,7 +59,6 @@ async def lifespan(app: FastAPI):
     yield
 
 
-limiter = Limiter(key_func=get_remote_address)
 _docs_enabled = os.getenv("ENABLE_DOCS", "false").lower() == "true"
 app = FastAPI(
     title="Blacklist Monitor API",
@@ -76,11 +75,9 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
+    allow_headers=["X-API-Key", "Content-Type", "Accept"],
 )
-
-API_KEY = os.getenv("API_KEY", "")
 
 app.include_router(users_router.router)
 app.include_router(roles_router.router)
@@ -98,6 +95,7 @@ class SetupRequest(BaseModel):
 class LoginRequest(BaseModel):
     email: str
     password: str
+    remember_me: bool = True
 
 
 class SubnetScanRequest(BaseModel):
@@ -222,7 +220,7 @@ def setup_status(db: Session = Depends(get_db)):
 
 
 @app.post("/setup")
-@limiter.limit("5/minute")
+@limiter.limit("2/minute")
 def setup(request: Request, body: SetupRequest, db: Session = Depends(get_db)):
     if db.query(models.AdminUser).first():
         raise HTTPException(status_code=400, detail="Already configured. Use login.")
@@ -249,8 +247,8 @@ def setup(request: Request, body: SetupRequest, db: Session = Depends(get_db)):
 
 
 @app.post("/auth/login")
-@limiter.limit("10/minute")
-def login(request: Request, body: LoginRequest, db: Session = Depends(get_db)):
+@limiter.limit("3/minute")
+def login(request: Request, response: Response, body: LoginRequest, db: Session = Depends(get_db)):
     email = body.email.strip().lower()
 
     # 1. Try LDAP first
@@ -270,11 +268,37 @@ def login(request: Request, body: LoginRequest, db: Session = Depends(get_db)):
     db.commit()
     perms = _user_permissions(admin)
     logger.info("admin_login", extra={"email": admin.email})
+    max_age = 90 * 24 * 3600 if body.remember_me else None
+    response.set_cookie(
+        key=SESSION_COOKIE,
+        value=admin.api_key,
+        httponly=True,
+        secure=True,
+        samesite="strict",
+        max_age=max_age,
+        path="/",
+    )
     return {
-        "api_key": admin.api_key,
         "email": admin.email,
         "name": admin.name or "",
         "role": admin.role.name if admin.role else None,
+        "permissions": sorted(perms),
+    }
+
+
+@app.post("/auth/logout")
+def logout(response: Response):
+    response.delete_cookie(key=SESSION_COOKIE, path="/", httponly=True, secure=True, samesite="strict")
+    return {"message": "Logged out"}
+
+
+@app.get("/auth/me")
+def auth_me(user: models.AdminUser = Depends(get_current_user)):
+    perms = _user_permissions(user)
+    return {
+        "email": user.email,
+        "name": user.name or "",
+        "role": user.role.name if user.role else None,
         "permissions": sorted(perms),
     }
 
@@ -361,9 +385,18 @@ def scan_subnet_progress(request: Request, scan_id: str):
     info_raw = _rclient.get(f"scan:{scan_id}:info")
     if not info_raw:
         raise HTTPException(status_code=404, detail="Scan not found or expired")
-    info = json.loads(info_raw)
+    try:
+        info = json.loads(info_raw)
+    except (json.JSONDecodeError, ValueError):
+        raise HTTPException(status_code=500, detail="Scan data corrupted")
     done = int(_rclient.get(f"scan:{scan_id}:done") or 0)
-    results = [json.loads(r) for r in _rclient.lrange(f"scan:{scan_id}:results", 0, -1)]
+    raw_results = _rclient.lrange(f"scan:{scan_id}:results", 0, -1)
+    results = []
+    for r in raw_results:
+        try:
+            results.append(json.loads(r))
+        except (json.JSONDecodeError, ValueError):
+            continue
     results.sort(key=lambda x: [int(p) for p in x["ip"].split(".")])
     listed = sum(1 for r in results if r["is_blacklisted"])
     return {
@@ -451,7 +484,12 @@ def bulk_scan_progress(request: Request, batch_id: str):
             continue
         info = json.loads(info_raw)
         done = int(_rclient.get(f"scan:{scan_id}:done") or 0)
-        results = [json.loads(r) for r in _rclient.lrange(f"scan:{scan_id}:results", 0, -1)]
+        results = []
+        for r in _rclient.lrange(f"scan:{scan_id}:results", 0, 999):
+            try:
+                results.append(json.loads(r))
+            except (json.JSONDecodeError, ValueError):
+                continue
         listed = sum(1 for r in results if r["is_blacklisted"])
         complete = info.get("complete", False)
         if not complete:
@@ -569,7 +607,14 @@ def update_scan_session(session_id: int, body: dict, db: Session = Depends(get_d
     if not sess:
         raise HTTPException(status_code=404, detail="Session not found")
     if "status" in body:
-        sess.status = body["status"]
+        new_status = body["status"]
+        _allowed_transitions = {
+            "running": {"complete", "failed"},
+            "pending": {"running", "failed"},
+        }
+        if new_status not in _allowed_transitions.get(sess.status, set()):
+            raise HTTPException(status_code=422, detail=f"Invalid status transition: {sess.status!r} → {new_status!r}")
+        sess.status = new_status
     if "total_listed" in body:
         sess.total_listed = body["total_listed"]
     if body.get("status") in ("complete", "failed"):
@@ -796,6 +841,8 @@ def add_target(request: Request, target: TargetCreate, db: Session = Depends(get
     if target_type == "ip":
         try:
             addr = ipaddress.ip_address(address)
+            if addr.version != 4:
+                raise HTTPException(status_code=422, detail="Only IPv4 addresses supported")
             if addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved or addr.is_unspecified:
                 raise HTTPException(status_code=422, detail=f"{address} is a private/reserved IP and cannot be monitored on public DNSBLs")
         except HTTPException:
@@ -941,8 +988,9 @@ def bulk_add_targets(request: Request, body: BulkAddRequest, db: Session = Depen
 
 @app.get("/targets/", dependencies=[Depends(require("targets:read"))], response_model=list[TargetResponse])
 @limiter.limit("60/minute")
-def list_targets(request: Request, db: Session = Depends(get_db), skip: int = 0):
-    return db.query(models.Target).offset(skip).all()
+def list_targets(request: Request, db: Session = Depends(get_db), skip: int = 0, limit: int = 100):
+    limit = min(max(limit, 1), 200)
+    return db.query(models.Target).offset(skip).limit(limit).all()
 
 
 @app.get("/targets/{target_id}", dependencies=[Depends(require("targets:write"))], response_model=TargetResponse)
@@ -1156,23 +1204,25 @@ def delete_ldap_group_mapping(mapping_id: int, db: Session = Depends(get_db)):
 @app.websocket("/ws/problems")
 async def problems_websocket(websocket: WebSocket):
     """Real-time feed of listed IPs/domains with their DNSBL hit details.
-    Auth: pass ?key=<api_key> as query param (WebSocket headers not reliably supported).
+    Auth: httpOnly session_key cookie sent automatically in WS upgrade request.
     """
-    api_key_param = websocket.query_params.get("key", "")
+    from .auth import _hash_api_key, _user_permissions as _up
+    raw_key = websocket.cookies.get(SESSION_COOKIE, "")
     db = database.SessionLocal()
     try:
-        user = db.query(models.AdminUser).filter(
-            models.AdminUser.api_key == api_key_param,
-            models.AdminUser.is_active == True,
-        ).first()
-        from .auth import _user_permissions as _up
+        user = None
+        if raw_key:
+            key_hash = _hash_api_key(raw_key)
+            user = db.query(models.AdminUser).filter(
+                models.AdminUser.api_key_hash == key_hash,
+                models.AdminUser.is_active == True,
+            ).first()
         valid = user is not None and "targets:read" in _up(user)
     finally:
         db.close()
     if not valid:
         await websocket.close(code=1008)
         return
-
     await websocket.accept()
     logger.info("ws_problems_connected", extra={"client": str(websocket.client)})
 

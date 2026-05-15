@@ -238,7 +238,10 @@ def lookup_org_for_target(address: str, target_type: str) -> str | None:
     if target_type == "domain":
         try:
             answers = _get_resolver().resolve(address, "A")
-            return lookup_org(answers[0].address)
+            ip = answers[0].address
+            if not ipaddress.ip_address(ip).is_global:
+                return None
+            return lookup_org(ip)
         except Exception:
             return None
     if target_type in ("cidr", "subnet"):
@@ -555,7 +558,10 @@ def check_target(address: str, target_type: str) -> list[str]:
     if target_type == "domain":
         try:
             answers = _get_resolver().resolve(address, "A")
-            ips = [r.address for r in answers]
+            ips = [
+                r.address for r in answers
+                if ipaddress.ip_address(r.address).is_global
+            ]
         except Exception:
             return []
         all_hits: list[str] = []

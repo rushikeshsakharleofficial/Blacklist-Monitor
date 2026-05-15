@@ -1,6 +1,7 @@
 from __future__ import annotations
 import hashlib
 import logging
+import os
 import secrets
 import string
 from typing import Optional
@@ -27,7 +28,9 @@ def _build_server(cfg: models.LdapConfig) -> Server:
     tls = None
     if cfg.tls_mode in ('start_tls', 'ldaps'):
         import ssl
-        tls = Tls(validate=ssl.CERT_NONE)
+        # Set LDAP_TLS_VERIFY=0 only for dev environments with self-signed certs
+        validate = ssl.CERT_NONE if os.getenv("LDAP_TLS_VERIFY", "1") == "0" else ssl.CERT_REQUIRED
+        tls = Tls(validate=validate)
     return Server(cfg.host, port=cfg.port, use_ssl=use_ssl, tls=tls, get_info=ALL)
 
 
